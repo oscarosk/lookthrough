@@ -1,5 +1,7 @@
 # Lookthrough
 
+[![CI](https://github.com/oscarosk/lookthrough/actions/workflows/ci.yml/badge.svg)](https://github.com/oscarosk/lookthrough/actions/workflows/ci.yml)
+
 **You hold 9 tokens. You own 5 bets. And you can't quickly sell 2 of them.**
 
 Lookthrough is a portfolio tracker for people who hold crypto and tokenised real-world assets side by side: BTC next to tokenised gold, tokenised stocks and treasury tokens. Other tools rate one token at a time. Lookthrough answers questions about *your* portfolio:
@@ -28,7 +30,8 @@ Lookthrough is a portfolio tracker for people who hold crypto and tokenised real
 
 | Endpoint | Used for | Cache |
 |---|---|---|
-| `GET /v2/cryptocurrency/quotes/latest` | Price, 24h volume and 24h change for every holding, in one call per portfolio | 2 minutes |
+| `GET /v3/cryptocurrency/quotes/latest` | Price, 24h volume (with its CEX/DEX split) and 24h change for every holding, in one call per portfolio | 2 minutes |
+| `GET /v3/cryptocurrency/quotes/historical` | 30 days of daily volume per holding; the exit check uses the median day, not just the last 24h | 6 hours |
 | `GET /v1/cryptocurrency/map` | Turning tickers into CoinMarketCap IDs, and choosing between tokens that share a ticker | 24 hours |
 | `GET /v1/key/info` | Health check of plan and credit usage (0 credits) | 30 seconds |
 | `GET /v5/real-world-assets/quotes/latest` | For each tokenised holding: its real-world asset, and every other token CMC tracks for that asset (price, volume, issuer) | 5 minutes |
@@ -42,7 +45,7 @@ The app shows every call in its API log panel. Example request made by the serve
 
 ```bash
 curl -H "X-CMC_PRO_API_KEY: $CMC_API_KEY" \
-  "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id=1,4705&convert=USD"
+  "https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/latest?id=1,4705&convert=USD"
 ```
 
 <!-- TODO: paste a trimmed real response here (no API key!) -->
@@ -66,7 +69,7 @@ pro-api.coinmarketcap.com
 - **Look-through from CoinMarketCap's RWA data** ([`lib/rwa-index.ts`](lib/rwa-index.ts), [`app/api/rwa/route.ts`](app/api/rwa/route.ts)): the issuer endpoints link each token's `crypto_id` to the real-world asset it represents (`rwa_id`) and its issuer. Lookthrough saves that link table once, then asks `/v5/real-world-assets/quotes/latest` live for the assets you hold. This is what lets it say that PAXG and XAUt are both gold, and that a busier token exists for the same stock.
 - **Crypto wrappers and stablecoins** ([`lib/underlying.ts`](lib/underlying.ts)): a short curated table (WBTC is Bitcoin, stETH is Ether, USDT is dollars issued by Tether). Anything unknown counts as its own bet.
 - **Wrapper comparison** ([`lib/rwa.ts`](lib/rwa.ts)): for each tokenised holding, the other tokens for the same asset are compared on 24h volume and price. Derivative "tokens" are ignored because they are not claims on the asset.
-- **Exit check** ([`lib/exitCheck.ts`](lib/exitCheck.ts)): days to sell = position value ÷ (10% of 24h volume). 10% is a common rule of thumb for selling without moving the price; the UI says so.
+- **Exit check** ([`lib/exitCheck.ts`](lib/exitCheck.ts)): days to sell = position value ÷ (10% of a typical day's volume). A typical day is the median of the last 30 daily volumes, so one unusually busy or quiet day does not decide the verdict. 10% is a common rule of thumb for selling without moving the price; the UI says so. When a busier token exists for the same asset, Lookthrough says how fast the same position would sell in that token instead.
 - **Honest data labels:** every response records whether it was live, reused from the cache, or served from the snapshot. The header shows how fresh the prices are.
 
 ## The census
@@ -74,6 +77,9 @@ pro-api.coinmarketcap.com
 `npm run census` reads every real-world asset on CoinMarketCap and the 24h volume of every token behind them, then asks how many could absorb a modest $5,000 sale in a day. The result is shown in the app and written to [`docs/CENSUS.md`](docs/CENSUS.md). It also picks a well-known stock whose token trades thinly, which the sample portfolio includes so the exit check has something real to show.
 
 ## Reliability during judging
+
+According to CoinMarketCap's plan comparison, everything Lookthrough calls is included in the free Basic plan (latest quotes, a year of daily historical quotes, and the RWA quotes, issuer and list endpoints), so the live demo keeps working after the hackathon's Startup access ends. To protect the key's credits on a public demo, each visitor is limited to 40 requests a minute and the server makes at most 60 live CoinMarketCap calls a minute, serving cached data beyond that ([`lib/ratelimit.ts`](lib/ratelimit.ts), [`lib/cmc.ts`](lib/cmc.ts)).
+
 
 The hackathon's Startup-tier access ends when submissions close, before judging. To keep the demo working, `npm run snapshot` saves real CoinMarketCap responses for the sample portfolio into `data/snapshots.json`. If a live call fails, the app serves that snapshot and says so on screen ("Saved snapshot, CoinMarketCap unreachable"). Nothing is presented as live when it is not.
 
@@ -118,4 +124,4 @@ The API key is read only on the server from `CMC_API_KEY` and is never sent to t
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).

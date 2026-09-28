@@ -6,6 +6,7 @@
 // Run: npm run census   (about 40 credits)
 import { mkdirSync, writeFileSync } from "node:fs";
 import { cmcFetch } from "../lib/cmc-core";
+import { parseHistory } from "../lib/parse";
 import { DERIVATIVES_ISSUER, normalizeIssuer, parseRwaQuotes } from "../lib/rwa";
 import type { RwaAsset } from "../lib/types";
 
@@ -16,7 +17,7 @@ const THIN = POSITION / PACE; // below this daily volume, $5k takes over a day
 
 interface ListRow { rwa_id: number; has_tokens: boolean; rwa_rank: number | null }
 
-const median = (xs: number[]) => {
+const medianOf = (xs: number[]) => {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
@@ -86,9 +87,30 @@ async function main() {
     .sort((a, b) => b.tokens - a.tokens);
 
   // A well-known stock whose token trades thinly, for the sample portfolio.
-  const sample = traded
-    .filter((t) => t.asset.assetType === "stock" && (t.volume24h as number) >= 3000 && (t.volume24h as number) <= 40000 && (rank.get(t.asset.rwaId) ?? Infinity) <= 150)
-    .sort((a, b) => (rank.get(a.asset.rwaId) ?? Infinity) - (rank.get(b.asset.rwaId) ?? Infinity))[0];
+  // It must be thin on a typical day too (30-day median), not just today.
+  const candidates = traded
+    .filter((t) => t.asset.assetType === "stock" && (t.volume24h as number) >= 1000 && (t.volume24h as number) <= 60000 && (rank.get(t.asset.rwaId) ?? Infinity) <= 200)
+    .sort((a, b) => (rank.get(a.asset.rwaId) ?? Infinity) - (rank.get(b.asset.rwaId) ?? Infinity))
+    .slice(0, 25);
+  let sample: (typeof candidates)[number] | undefined;
+  let sampleTypical: number | null = null;
+  if (candidates.length) {
+    const hist = await cmcFetch(
+      "/v3/cryptocurrency/quotes/historical",
+      { id: candidates.map((c) => c.cryptoId).sort((a, b) => a - b).join(","), count: "30", interval: "daily", convert: "USD" },
+      key,
+    );
+    credits += hist.status.credit_count;
+    const typical = parseHistory(hist.data);
+    for (const c of candidates) {
+      const m = typical[c.cryptoId]?.medianVolume ?? null;
+      if (m !== null && m >= 2000 && m <= 40000) {
+        sample = c;
+        sampleTypical = m;
+        break;
+      }
+    }
+  }
 
   const census = {
     generatedAt: new Date().toISOString(),
@@ -102,13 +124,13 @@ async function main() {
     thin: thin.length,
     thinShare: pct(thin.length, tokens.length),
     under1k: under1k.length,
-    medianTradedVolume: median(traded.map((t) => t.volume24h as number)),
+    medianTradedVolume: medianOf(traded.map((t) => t.volume24h as number)),
     multiWrapperAssets: multi.length,
     tenXGapAssets: tenX,
     issuers,
-        headline: `Only ${pct(tokens.length - thin.length, tokens.length)}% of the ${tokens.length.toLocaleString("en-US")} tokenised real-world asset tokens on CoinMarketCap trade enough to sell a $${POSITION.toLocaleString("en-US")} position within a day. ${pct(noMarket.length, tokens.length)}% show no trading volume at all.`,
+    headline: `Only ${pct(tokens.length - thin.length, tokens.length)}% of the ${tokens.length.toLocaleString("en-US")} tokenised real-world asset tokens on CoinMarketCap trade enough to sell a $${POSITION.toLocaleString("en-US")} position within a day. ${pct(noMarket.length, tokens.length)}% show no trading volume at all.`,
     sample: sample
-      ? { cryptoId: sample.cryptoId, symbol: sample.symbol, name: sample.name, underlying: sample.asset.name, volume24h: sample.volume24h, price: sample.price }
+      ? { cryptoId: sample.cryptoId, symbol: sample.symbol, name: sample.name, underlying: sample.asset.name, volume24h: sample.volume24h, typicalVolume: sampleTypical, price: sample.price }
       : null,
     credits,
   };
@@ -142,7 +164,11 @@ async function main() {
 
   console.log(`\n${census.headline}`);
   console.log(`No market: ${census.noMarket}/${census.tokens}. Assets with a 10× wrapper gap: ${tenX}/${multi.length}.`);
-  console.log(sample ? `Sample thin token: ${sample.symbol} (${sample.name}), $${Math.round(sample.volume24h as number)}/day` : "No sample thin token found");
+  console.log(
+    sample
+      ? `Sample thin token: ${sample.symbol} (${sample.name}), $${Math.round(sample.volume24h as number)} today, $${Math.round(sampleTypical ?? 0)} on a typical day`
+      : "No sample thin token found (none was thin on a typical day too)",
+  );
   console.log(`Credits used: ${credits}`);
 }
 

@@ -2,12 +2,16 @@
 // All active coins with this ticker, from /v1/cryptocurrency/map (cached 24h).
 import { NextRequest } from "next/server";
 import { errorMessage, getCmc } from "@/lib/cmc";
+import { rateLimited } from "@/lib/ratelimit";
 import { parseMap } from "@/lib/parse";
 import type { ApiResult, CoinRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const limited = rateLimited(req);
+  if (limited) return limited;
+
   const symbol = (req.nextUrl.searchParams.get("symbol") ?? "").trim().toUpperCase();
   if (!/^[A-Z0-9.$-]{1,20}$/.test(symbol)) {
     return Response.json({ ok: false, error: "Enter a ticker symbol, like PAXG" } satisfies ApiResult<never>, { status: 400 });

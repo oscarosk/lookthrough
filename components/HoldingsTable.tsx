@@ -1,29 +1,31 @@
-import { exitCheck, GRADE_LABEL, PARTICIPATION } from "@/lib/exitCheck";
+import { exitCheck, GRADE_LABEL, PARTICIPATION, type ExitResult } from "@/lib/exitCheck";
 import { days, pct, qty, signedUsd, usd } from "@/lib/format";
-import type { Holding, Quote } from "@/lib/types";
+import type { Holding, Quote, VolumeHistory } from "@/lib/types";
 
 export interface RowNote {
   tokenCount: number;
   priceGap: number | null;
-  busier: { symbol: string; issuer: string; volume: number; ratio: number } | null;
+  busier: { symbol: string; issuer: string; volume: number; ratio: number; exit: ExitResult } | null;
 }
 
 interface Props {
   holdings: Holding[];
   notes: Record<number, RowNote>;
+  history: Record<number, VolumeHistory>;
   quotes: Record<number, Quote>;
   colors: Map<string, string>;
   underlyingOf: (h: Holding) => string;
   onRemove: (id: number) => void;
 }
 
-export default function HoldingsTable({ holdings, quotes, colors, notes, underlyingOf, onRemove }: Props) {
+export default function HoldingsTable({ holdings, quotes, colors, notes, history, underlyingOf, onRemove }: Props) {
   return (
     <section className="block" aria-labelledby="h-title">
       <h2 id="h-title">Could you sell it?</h2>
       <p className="lede">
-        Each position compared with the token&apos;s real 24-hour trading volume on CoinMarketCap. Selling more than about {pct(PARTICIPATION, 0)} of a day&apos;s volume
-        usually moves the price against you, so that is the pace assumed here.
+        Each position compared with the token&apos;s trading volume on a typical recent day: the median of the last 30 days on CoinMarketCap, so one unusually busy or quiet
+        day does not decide the answer. Selling more than about {pct(PARTICIPATION, 0)} of a day&apos;s volume usually moves the price against you, so that is the pace
+        assumed here.
       </p>
       <div className="table-wrap">
         <table>
@@ -34,18 +36,24 @@ export default function HoldingsTable({ holdings, quotes, colors, notes, underly
               <th scope="col" className="num">Price</th>
               <th scope="col" className="num">Value</th>
               <th scope="col" className="num">Profit / loss</th>
-              <th scope="col" className="num">24h volume</th>
+              <th scope="col" className="num">Daily volume</th>
               <th scope="col">Selling it</th>
-              <th scope="col"><span className="sr-only">Remove</span></th>
+              <th scope="col">
+                <span className="sr-only">Remove</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {holdings.map((h) => {
               const q = quotes[h.id];
+              const hist = history[h.id];
               const price = q?.price ?? null;
               const value = price !== null ? price * h.quantity : null;
               const pnl = value !== null && h.buyPrice !== null ? value - h.buyPrice * h.quantity : null;
-              const exit = value !== null ? exitCheck(value, q?.volume24h ?? null) : null;
+              const typical = hist && hist.days >= 7 && hist.medianVolume !== null ? hist.medianVolume : null;
+              const volume = typical ?? q?.volume24h ?? null;
+              const exit = value !== null ? exitCheck(value, volume) : null;
+              const dexShare = q?.volume24h && q.dexVolume24h !== null ? q.dexVolume24h / q.volume24h : null;
               return (
                 <tr key={h.id}>
                   <th scope="row">
@@ -56,8 +64,14 @@ export default function HoldingsTable({ holdings, quotes, colors, notes, underly
                   <td className="num">{qty(h.quantity)}</td>
                   <td className="num">{q ? usd(price) : <span className="muted">loading</span>}</td>
                   <td className="num">{usd(value)}</td>
-                  <td className={`num ${pnl === null || Math.abs(pnl) < 0.005 ? "" : pnl > 0 ? "gain" : "loss"}`}>{pnl === null ? <span className="muted">no buy price</span> : signedUsd(pnl)}</td>
-                  <td className="num">{usd(q?.volume24h ?? null, { compact: true })}</td>
+                  <td className={`num ${pnl === null || Math.abs(pnl) < 0.005 ? "" : pnl > 0 ? "gain" : "loss"}`}>
+                    {pnl === null ? <span className="muted">no buy price</span> : signedUsd(pnl)}
+                  </td>
+                  <td className="num">
+                    {usd(volume, { compact: true })}
+                    <span className="vol-sub">{typical !== null ? `typical day; today ${usd(q?.volume24h ?? null, { compact: true })}` : "last 24h"}</span>
+                    {dexShare !== null && dexShare > 0.5 && <span className="vol-sub">mostly on DEXs</span>}
+                  </td>
                   <td>
                     {exit ? (
                       <div className="exit">
@@ -90,9 +104,14 @@ export default function HoldingsTable({ holdings, quotes, colors, notes, underly
 
 function WrapperNote({ note, symbol }: { note: RowNote; symbol: string }) {
   const lines: string[] = [];
-  if (note.busier) lines.push(`Same asset, busier token: ${note.busier.symbol} (${note.busier.issuer}) trades ${usd(note.busier.volume, { compact: true })} a day, ${Math.round(note.busier.ratio)}× ${symbol}.`);
-  if (note.priceGap !== null && Math.abs(note.priceGap) >= 0.005)
+  if (note.busier) {
+    lines.push(
+      `Same asset, busier token: ${note.busier.symbol} (${note.busier.issuer}) trades ${usd(note.busier.volume, { compact: true })} a day, ${Math.round(note.busier.ratio)}× ${symbol}. Held as ${note.busier.symbol}, this position would sell in ${days(note.busier.exit.daysToExit)}.`,
+    );
+  }
+  if (note.priceGap !== null && Math.abs(note.priceGap) >= 0.005) {
     lines.push(`${symbol} is ${pct(Math.abs(note.priceGap))} ${note.priceGap > 0 ? "above" : "below"} the average price of all ${note.tokenCount} tokens for this asset.`);
+  }
   if (lines.length === 0) return null;
   return (
     <ul className="wrapper-note">

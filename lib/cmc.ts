@@ -6,6 +6,18 @@ import { cacheKey, cmcFetch, CmcError, type CmcResponse } from "./cmc-core";
 import type { CallMeta } from "./types";
 
 const memory = new Map<string, { at: number; json: CmcResponse }>();
+
+// Credit guard: at most 60 live CoinMarketCap calls a minute per server
+// instance. Beyond that, cached or snapshot data is served instead.
+const LIVE_PER_MINUTE = 60;
+let liveCalls: number[] = [];
+function liveBudgetLeft(): boolean {
+  const now = Date.now();
+  liveCalls = liveCalls.filter((t) => now - t < 60_000);
+  if (liveCalls.length >= LIVE_PER_MINUTE) return false;
+  liveCalls.push(now);
+  return true;
+}
 const SNAPSHOTS = snapshots as unknown as Record<string, CmcResponse>;
 
 function preview(json: unknown): string {
@@ -51,6 +63,10 @@ export async function getCmc(
   const apiKey = process.env.CMC_API_KEY;
   try {
     if (!apiKey) throw new CmcError("CMC_API_KEY is not set on the server", 500, null);
+    if (!liveBudgetLeft()) {
+      if (hit) return { json: hit.json, meta: meta(path, params, hit.json, "cache") };
+      throw new CmcError("Lookthrough is busy. Try again in a minute.", 503, null);
+    }
     const json = await cmcFetch(path, params, apiKey);
     memory.set(key, { at: Date.now(), json });
     return { json, meta: meta(path, params, json, "live") };

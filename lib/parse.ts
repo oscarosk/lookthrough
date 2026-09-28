@@ -1,23 +1,28 @@
 // Validate the parts of CoinMarketCap responses we rely on.
 // Unknown or missing fields become null instead of crashing the page.
+// Handles both v2 shapes (quote.USD object, data keyed by id) and v3 shapes
+// (quote as an array of currency objects, data as an array).
 import { z } from "zod";
-import type { CoinRef, Quote } from "./types";
+import type { CoinRef, Quote, VolumeHistory } from "./types";
 
-const num = z.number().nullable().optional();
+const num = z.union([z.number(), z.string()]).nullable().optional().transform((v) => (v === null || v === undefined || v === "" ? null : Number(v)));
 
 const UsdQuote = z.object({
   price: num,
   volume_24h: num,
+  cex_volume_24h: num,
+  dex_volume_24h: num,
   percent_change_24h: num,
   market_cap: num,
   last_updated: z.string().nullable().optional(),
 });
+type UsdQuote = z.infer<typeof UsdQuote>;
 
 const QuoteEntry = z.object({
   id: z.number(),
   name: z.string(),
   symbol: z.string(),
-  quote: z.object({ USD: UsdQuote.optional() }).partial(),
+  quote: z.unknown(),
 });
 
 const MapEntry = z.object({
@@ -28,28 +33,63 @@ const MapEntry = z.object({
   rank: z.number().nullable().optional(),
 });
 
-export function parseQuotes(data: unknown): Quote[] {
+/** The USD quote, whether CMC sent `{ USD: {...} }` (v2) or `[{ symbol: "USD", ... }]` (v3). */
+export function usdQuote(quote: unknown): UsdQuote | null {
+  let raw: unknown = null;
+  if (Array.isArray(quote)) {
+    raw = quote.find((q) => q && typeof q === "object" && ((q as { symbol?: string }).symbol === "USD" || (q as { id?: number }).id === 2781)) ?? null;
+  } else if (quote && typeof quote === "object") {
+    raw = (quote as Record<string, unknown>).USD ?? null;
+  }
+  const parsed = UsdQuote.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+/** Entries from `data`, whether an array (v3) or an object keyed by id or symbol (v2). */
+function entries(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
   if (!data || typeof data !== "object") return [];
+  return Object.values(data as Record<string, unknown>).flatMap((v) => (Array.isArray(v) ? v : [v]));
+}
+
+export function parseQuotes(data: unknown): Quote[] {
   const out: Quote[] = [];
-  for (const value of Object.values(data as Record<string, unknown>)) {
-    // Keyed by id → one object. Keyed by symbol → an array of objects.
-    const entries = Array.isArray(value) ? value : [value];
-    for (const raw of entries) {
-      const parsed = QuoteEntry.safeParse(raw);
-      if (!parsed.success) continue;
-      const q = parsed.data;
-      const usd = q.quote.USD;
-      out.push({
-        id: q.id,
-        symbol: q.symbol,
-        name: q.name,
-        price: usd?.price ?? null,
-        volume24h: usd?.volume_24h ?? null,
-        percentChange24h: usd?.percent_change_24h ?? null,
-        marketCap: usd?.market_cap ?? null,
-        lastUpdated: usd?.last_updated ?? null,
-      });
-    }
+  for (const raw of entries(data)) {
+    const parsed = QuoteEntry.safeParse(raw);
+    if (!parsed.success) continue;
+    const q = parsed.data;
+    const usd = usdQuote(q.quote);
+    out.push({
+      id: q.id,
+      symbol: q.symbol,
+      name: q.name,
+      price: usd?.price ?? null,
+      volume24h: usd?.volume_24h ?? null,
+      cexVolume24h: usd?.cex_volume_24h ?? null,
+      dexVolume24h: usd?.dex_volume_24h ?? null,
+      percentChange24h: usd?.percent_change_24h ?? null,
+      marketCap: usd?.market_cap ?? null,
+      lastUpdated: usd?.last_updated ?? null,
+    });
+  }
+  return out;
+}
+
+export function median(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/** Median daily volume per id from /v3/cryptocurrency/quotes/historical. */
+export function parseHistory(data: unknown): Record<number, VolumeHistory> {
+  const out: Record<number, VolumeHistory> = {};
+  for (const raw of entries(data)) {
+    const e = raw as { id?: number; quotes?: { quote?: unknown }[] } | null;
+    if (!e || typeof e.id !== "number" || !Array.isArray(e.quotes)) continue;
+    const vols = e.quotes.map((q) => usdQuote(q?.quote)?.volume_24h).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    out[e.id] = { medianVolume: median(vols), days: vols.length };
   }
   return out;
 }

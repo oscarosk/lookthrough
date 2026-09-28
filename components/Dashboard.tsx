@@ -9,11 +9,11 @@ import Lookthrough from "./Lookthrough";
 import { colorMap } from "@/lib/colors";
 import { exitCheck, isHardToSell } from "@/lib/exitCheck";
 import { byIssuer, byUnderlying, countBets, hiddenConcentration, ISSUER_WARN, UNDERLYING_WARN, type Position } from "@/lib/exposure";
-import { pct, signedUsd, timeAgo, usd } from "@/lib/format";
+import { days, pct, signedUsd, timeAgo, usd } from "@/lib/format";
 import { loadHoldings, SAMPLE, saveHoldings } from "@/lib/portfolio";
 import { compareWrappers, normalizeIssuer } from "@/lib/rwa";
 import { sampleExtras } from "@/lib/sample";
-import type { ApiResult, CoinRef, DataSource, Holding, Quote, RwaLookup } from "@/lib/types";
+import type { ApiResult, CoinRef, DataSource, Holding, Quote, RwaLookup, VolumeHistory } from "@/lib/types";
 import { lookThrough, type RwaHint } from "@/lib/underlying";
 
 const REFRESH_MS = 120_000;
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>(loadHoldings);
   const [quotes, setQuotes] = useState<Record<number, Quote>>({});
   const [rwa, setRwa] = useState<RwaLookup>(EMPTY_RWA);
+  const [history, setHistory] = useState<Record<number, VolumeHistory>>({});
   const [log, setLog] = useState<LogEntry[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [loadingSample, setLoadingSample] = useState(false);
@@ -77,6 +78,30 @@ export default function Dashboard() {
       clearInterval(t);
     };
   }, [refresh]);
+
+  // 30-day volume history changes slowly: fetch once per set of holdings.
+  useEffect(() => {
+    if (!idsKey) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const h = await call<Record<number, VolumeHistory>>(`/api/history?ids=${idsKey}`);
+      if (!cancelled && h.ok) setHistory((prev) => ({ ...prev, ...h.data }));
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [call, idsKey]);
+
+  /** Volume on a typical recent day (30-day median), falling back to the last 24h. */
+  const typicalVolume = useCallback(
+    (id: number): number | null => {
+      const h = history[id];
+      if (h && h.days >= 7 && h.medianVolume !== null) return h.medianVolume;
+      return quotes[id]?.volume24h ?? null;
+    },
+    [history, quotes],
+  );
 
   async function loadSample() {
     setLoadingSample(true);
@@ -149,7 +174,7 @@ export default function Dashboard() {
   const total = positions.reduce((s, p) => s + p.value, 0);
   const withCost = holdings.filter((h) => h.buyPrice !== null && quotes[h.id]?.price != null);
   const pnl = withCost.reduce((s, h) => s + ((quotes[h.id].price as number) - (h.buyPrice as number)) * h.quantity, 0);
-  const hard = positions.filter((p) => isHardToSell(exitCheck(p.value, quotes[p.id]?.volume24h ?? null)));
+  const hard = positions.filter((p) => isHardToSell(exitCheck(p.value, typicalVolume(p.id))));
   const bets = countBets(positions);
 
   // Compare each tokenised holding with the other tokens for the same asset.
@@ -161,22 +186,38 @@ export default function Dashboard() {
     if (!asset) continue;
     const q = quotes[p.id];
     const w = compareWrappers(asset, p.id, q?.price ?? null, q?.volume24h ?? null);
-    notes[p.id] = { tokenCount: w.tokenCount, priceGap: w.priceGap, busier: w.busier ? { symbol: w.busier.symbol, issuer: normalizeIssuer(w.busier.issuerName ?? ""), volume: w.busier.volume24h ?? 0, ratio: w.busierRatio ?? 0 } : null };
-    if (w.busier && w.busierRatio && isHardToSell(exitCheck(p.value, q?.volume24h ?? null))) {
+    const busierExit = w.busier ? exitCheck(p.value, w.busier.volume24h) : null;
+    notes[p.id] = {
+      tokenCount: w.tokenCount,
+      priceGap: w.priceGap,
+      busier: w.busier && busierExit ? { symbol: w.busier.symbol, issuer: normalizeIssuer(w.busier.issuerName ?? ""), volume: w.busier.volume24h ?? 0, ratio: w.busierRatio ?? 0, exit: busierExit } : null,
+    };
+    if (w.busier && w.busierRatio && busierExit && isHardToSell(exitCheck(p.value, typicalVolume(p.id)))) {
       wrapperWarnings.push(
-        `${asset.name} has ${w.tokenCount} tokens on CoinMarketCap. ${w.busier.symbol} from ${normalizeIssuer(w.busier.issuerName ?? "another issuer")} trades ${usd(w.busier.volume24h, { compact: true })} a day, ${Math.round(w.busierRatio)}× more than your ${p.symbol}.`,
+        `${asset.name} has ${w.tokenCount} tokens on CoinMarketCap. ${w.busier.symbol} from ${normalizeIssuer(w.busier.issuerName ?? "another issuer")} trades ${usd(w.busier.volume24h, { compact: true })} a day, ${Math.round(w.busierRatio)}× more than your ${p.symbol}. Held as ${w.busier.symbol}, the same position would sell in ${days(busierExit.daysToExit)}.`,
       );
     }
   }
 
   const warnings = [
     ...hard.map((p) => {
-      const e = exitCheck(p.value, quotes[p.id]?.volume24h ?? null);
+      const e = exitCheck(p.value, typicalVolume(p.id));
       return Number.isFinite(e.daysToExit)
-        ? `Your ${p.symbol} position (${usd(p.value)}) is ${pct(e.shareOfDailyVolume, 0)} of a whole day's trading. Selling it calmly would take about ${Math.max(1, Math.round(e.daysToExit))} days.`
+        ? `Your ${p.symbol} position (${usd(p.value)}) is ${pct(e.shareOfDailyVolume, 0)} of a typical day's trading. Selling it calmly would take about ${Math.max(1, Math.round(e.daysToExit))} days.`
         : `${p.symbol} shows no tracked trading volume, so there may be no market to sell your ${usd(p.value)} into.`;
     }),
     ...wrapperWarnings,
+    ...positions
+      .filter((p) => {
+        const h = history[p.id];
+        const today = quotes[p.id]?.volume24h ?? null;
+        return h && h.days >= 7 && h.medianVolume && today !== null && today < h.medianVolume * 0.25;
+      })
+      .map((p) => {
+        const typical = history[p.id].medianVolume as number;
+        const today = quotes[p.id].volume24h as number;
+        return `${p.symbol} is trading far below normal today: ${usd(today, { compact: true })} in the last 24 hours against ${usd(typical, { compact: true })} on a typical day. Liquidity can disappear when you need it.`;
+      }),
     ...hiddenConcentration(underlying, UNDERLYING_WARN).map(
       (g) => `${pct(g.share, 0)} of your money is one bet on ${g.label}, spread across ${g.symbols.join(" and ")}.`,
     ),
@@ -253,6 +294,7 @@ export default function Dashboard() {
                   setHoldings([]);
                   setQuotes({});
                   setRwa(EMPTY_RWA);
+                  setHistory({});
                   setNotice(null);
                 }}
               >
@@ -282,6 +324,7 @@ export default function Dashboard() {
             quotes={quotes}
             colors={colors}
             notes={notes}
+            history={history}
             underlyingOf={underlyingOf}
             onRemove={(id) => setHoldings((p) => p.filter((h) => h.id !== id))}
           />

@@ -37,6 +37,8 @@ export interface Quote {
   name: string;
   price: number | null;
   volume24h: number | null;
+  cexVolume24h: number | null;
+  dexVolume24h: number | null;
   percentChange24h: number | null;
   marketCap: number | null;
   lastUpdated: string | null;
@@ -85,4 +87,10 @@ export interface RwaLookup {
   /** crypto_id → the RWA asset it represents and who issued it. */
   links: Record<number, { rwaId: number; issuerName: string }>;
   assets: Record<number, RwaAsset>;
+}
+
+/** Daily volume over recent days, used to judge a typical day rather than just today. */
+export interface VolumeHistory {
+  medianVolume: number | null;
+  days: number;
 }

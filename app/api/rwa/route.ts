@@ -4,6 +4,7 @@
 // Uses /v5/real-world-assets/quotes/latest (cached 5 minutes).
 import { NextRequest } from "next/server";
 import { errorMessage, getCmc } from "@/lib/cmc";
+import { rateLimited } from "@/lib/ratelimit";
 import { parseRwaQuotes } from "@/lib/rwa";
 import { rwaLink } from "@/lib/rwa-index";
 import type { ApiResult, RwaLookup } from "@/lib/types";
@@ -11,6 +12,9 @@ import type { ApiResult, RwaLookup } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const limited = rateLimited(req);
+  if (limited) return limited;
+
   const ids = (req.nextUrl.searchParams.get("ids") ?? "")
     .split(",")
     .map((s) => Number(s.trim()))

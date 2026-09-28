@@ -31,7 +31,11 @@ async function main() {
 
   // Same params /api/quotes builds.
   const quoteParams = { id: ids.join(","), convert: "USD" };
-  out[cacheKey("/v2/cryptocurrency/quotes/latest", quoteParams)] = await cmcFetch("/v2/cryptocurrency/quotes/latest", quoteParams, apiKey);
+  out[cacheKey("/v3/cryptocurrency/quotes/latest", quoteParams)] = await cmcFetch("/v3/cryptocurrency/quotes/latest", quoteParams, apiKey);
+
+  // Same params /api/history builds.
+  const historyParams = { id: ids.join(","), count: "30", interval: "daily", convert: "USD" };
+  out[cacheKey("/v3/cryptocurrency/quotes/historical", historyParams)] = await cmcFetch("/v3/cryptocurrency/quotes/historical", historyParams, apiKey);
 
   // Same params /api/rwa builds.
   const rwaIds = [...new Set(ids.map((id) => rwaLink(id)?.rwaId).filter((x): x is number => typeof x === "number"))].sort((a, b) => a - b);

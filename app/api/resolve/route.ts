@@ -2,12 +2,16 @@
 // One /v1/cryptocurrency/map call resolves many tickers; best rank wins.
 import { NextRequest } from "next/server";
 import { errorMessage, getCmc } from "@/lib/cmc";
+import { rateLimited } from "@/lib/ratelimit";
 import { parseMap, pickBest } from "@/lib/parse";
 import type { ApiResult, CoinRef } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const limited = rateLimited(req);
+  if (limited) return limited;
+
   const symbols = (req.nextUrl.searchParams.get("symbols") ?? "")
     .split(",")
     .map((s) => s.trim().toUpperCase())

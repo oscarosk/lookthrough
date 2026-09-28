@@ -156,3 +156,5 @@ input[type="text"], .add-row input {
 .wrapper-note li { font-size: 0.8rem; color: var(--ink); padding-left: 8px; border-left: 2px solid var(--line); }
 .census-headline { font-size: clamp(1.25rem, 2.6vw, 1.7rem); line-height: 1.25; font-weight: 700; letter-spacing: -0.015em; max-width: 40ch; margin: 8px 0 16px; }
 .census-facts { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; max-width: 72ch; }
+
+.vol-sub { display: block; font-size: 0.75rem; color: var(--muted); white-space: normal; max-width: 120px; margin-left: auto; }
