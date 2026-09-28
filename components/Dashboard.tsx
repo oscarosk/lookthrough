@@ -13,6 +13,7 @@ import { days, pct, signedUsd, timeAgo, usd } from "@/lib/format";
 import { loadHoldings, SAMPLE, saveHoldings } from "@/lib/portfolio";
 import { compareWrappers, normalizeIssuer } from "@/lib/rwa";
 import { sampleExtras } from "@/lib/sample";
+import { holdingsFromLocation, shareUrl } from "@/lib/share";
 import type { ApiResult, CoinRef, DataSource, Holding, Quote, RwaLookup, VolumeHistory } from "@/lib/types";
 import { lookThrough, type RwaHint } from "@/lib/underlying";
 
@@ -21,12 +22,15 @@ const EMPTY_RWA: RwaLookup = { links: {}, assets: {} };
 
 export default function Dashboard() {
   // Rendered in the browser only (see ClientApp), so localStorage is safe here.
-  const [holdings, setHoldings] = useState<Holding[]>(loadHoldings);
+  // A shared link (#p=…) opens that portfolio; otherwise the one saved here.
+  const [shared] = useState<boolean>(() => holdingsFromLocation() !== null);
+  const [holdings, setHoldings] = useState<Holding[]>(() => holdingsFromLocation() ?? loadHoldings());
+  const [historyReady, setHistoryReady] = useState(false);
   const [quotes, setQuotes] = useState<Record<number, Quote>>({});
   const [rwa, setRwa] = useState<RwaLookup>(EMPTY_RWA);
   const [history, setHistory] = useState<Record<number, VolumeHistory>>({});
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(shared ? "Opened a shared portfolio. It now replaces the portfolio saved in this browser." : null);
   const [loadingSample, setLoadingSample] = useState(false);
   const [lastQuote, setLastQuote] = useState<{ source: DataSource; at: string | null } | null>(null);
   const counter = useRef(0);
@@ -39,14 +43,19 @@ export default function Dashboard() {
     } catch {
       body = { ok: false, error: "Could not reach the Lookthrough server. Check your connection." };
     }
-    counter.current += 1;
-    setLog((l) => [...l, { n: counter.current, at: new Date().toISOString(), route: url, ok: body.ok, error: body.ok ? undefined : body.error, meta: body.meta }]);
+    const n = ++counter.current;
+    setLog((l) => [...l, { n,at: new Date().toISOString(), route: url, ok: body.ok, error: body.ok ? undefined : body.error, meta: body.meta }]);
     return body;
   }, []);
 
   useEffect(() => {
     saveHoldings(holdings);
   }, [holdings]);
+
+  // Once a shared portfolio is open, drop it from the address bar so later edits are not overwritten on reload.
+  useEffect(() => {
+    if (shared) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, [shared]);
 
   const idsKey = useMemo(() => [...new Set(holdings.map((h) => h.id))].sort((a, b) => a - b).join(","), [holdings]);
 
@@ -59,6 +68,11 @@ export default function Dashboard() {
         for (const x of q.data) next[x.id] = x;
         return next;
       });
+      // Shared links carry only ids: fill in symbols and names from the quotes.
+      const byId = new Map(q.data.map((x) => [x.id, x]));
+      setHoldings((prev) =>
+        prev.some((h) => !h.symbol && byId.has(h.id)) ? prev.map((h) => (!h.symbol && byId.has(h.id) ? { ...h, symbol: byId.get(h.id)!.symbol, name: byId.get(h.id)!.name } : h)) : prev,
+      );
       if (q.meta) setLastQuote({ source: q.meta.source, at: q.meta.cmcTimestamp });
     } else {
       setNotice(`Prices could not be loaded: ${q.error}`);
@@ -82,15 +96,20 @@ export default function Dashboard() {
   // 30-day volume history changes slowly: fetch once per set of holdings.
   useEffect(() => {
     if (!idsKey) return;
+    const missing = idsKey.split(",").some((id) => !(Number(id) in history));
+    if (!missing) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       const h = await call<Record<number, VolumeHistory>>(`/api/history?ids=${idsKey}`);
-      if (!cancelled && h.ok) setHistory((prev) => ({ ...prev, ...h.data }));
+      if (cancelled) return;
+      if (h.ok) setHistory((prev) => ({ ...prev, ...h.data }));
+      setHistoryReady(true);
     }, 0);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the set of holdings changes
   }, [call, idsKey]);
 
   /** Volume on a typical recent day (30-day median), falling back to the last 24h. */
@@ -138,6 +157,17 @@ export default function Dashboard() {
       `Sample portfolio loaded with ${snapshot ? "saved CoinMarketCap prices (live data unavailable)" : "live CoinMarketCap prices"}. Amounts and buy prices are illustrative.${missing.length ? ` Not found on CoinMarketCap right now: ${missing.join(", ")}.` : ""}`,
     );
     setLoadingSample(false);
+  }
+
+  function addMany(list: Holding[]) {
+    for (const h of list) addHolding(h);
+  }
+
+  function copyShareLink() {
+    const url = shareUrl(holdings);
+    const done = () => setNotice("Link copied. It opens this exact portfolio, including amounts and buy prices, for anyone you send it to.");
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => setNotice(`Copy this link: ${url}`));
+    else setNotice(`Copy this link: ${url}`);
   }
 
   function addHolding(h: Holding) {
@@ -194,7 +224,7 @@ export default function Dashboard() {
     };
     if (w.busier && w.busierRatio && busierExit && isHardToSell(exitCheck(p.value, typicalVolume(p.id)))) {
       wrapperWarnings.push(
-        `${asset.name} has ${w.tokenCount} tokens on CoinMarketCap. ${w.busier.symbol} from ${normalizeIssuer(w.busier.issuerName ?? "another issuer")} trades ${usd(w.busier.volume24h, { compact: true })} a day, ${Math.round(w.busierRatio)}× more than your ${p.symbol}. Held as ${w.busier.symbol}, the same position would sell in ${days(busierExit.daysToExit)}.`,
+        `${asset.name} has ${w.tokenCount} tokens on CoinMarketCap. ${w.busier.symbol} from ${normalizeIssuer(w.busier.issuerName ?? "another issuer")} trades ${usd(w.busier.volume24h, { compact: true })} in the last 24 hours, ${Math.round(w.busierRatio)}× more than your ${p.symbol}. Held as ${w.busier.symbol}, the same position would sell in ${days(busierExit.daysToExit)}.`,
       );
     }
   }
@@ -264,7 +294,7 @@ export default function Dashboard() {
             {positions.length > 0 ? (
               <h1 className="verdict">
                 You hold {positions.length} {positions.length === 1 ? "token" : "tokens"}. You own {bets} {bets === 1 ? "bet" : "bets"}.{" "}
-                {hard.length > 0 ? `And you can't quickly sell ${hard.length} of them.` : "And all of them sell easily."}
+                {!historyReady ? "Checking how easily each one sells…" : hard.length > 0 ? `And you can't quickly sell ${hard.length} of them.` : "And all of them sell easily."}
               </h1>
             ) : (
               <h1 className="verdict">Loading prices from CoinMarketCap…</h1>
@@ -284,6 +314,9 @@ export default function Dashboard() {
               </div>
             </dl>
             <div className="hero-actions">
+              <button type="button" className="btn btn-primary" onClick={copyShareLink}>
+                Copy link to this portfolio
+              </button>
               <button type="button" className="btn" onClick={loadSample} disabled={loadingSample}>
                 {loadingSample ? "Loading" : "Reload sample portfolio"}
               </button>
@@ -295,6 +328,7 @@ export default function Dashboard() {
                   setQuotes({});
                   setRwa(EMPTY_RWA);
                   setHistory({});
+                  setHistoryReady(false);
                   setNotice(null);
                 }}
               >
@@ -306,7 +340,7 @@ export default function Dashboard() {
 
         {notice && <p className="notice" role="status">{notice}</p>}
 
-        {warnings.length > 0 && (
+        {historyReady && warnings.length > 0 && (
           <section className="block warnings" aria-labelledby="w-title">
             <h2 id="w-title">What stands out</h2>
             <ul>
@@ -332,14 +366,14 @@ export default function Dashboard() {
         {positions.length > 0 && <Issuers issuers={issuers} />}
 
         <Census />
-        <AddHolding call={call} onAdd={addHolding} />
+        <AddHolding call={call} onAdd={addHolding} onAddMany={addMany} />
         <ApiLog entries={log} />
       </main>
 
       <footer className="foot">
         <p>
           Market data from the CoinMarketCap API, including its real-world asset endpoints. Built for Build with CMC. Not financial advice: volumes are CoinMarketCap&apos;s
-          reported 24-hour totals, and the selling pace is a rule of thumb.
+          reported daily totals (the median of the last 30 days), and the selling pace is a rule of thumb.
         </p>
       </footer>
     </>

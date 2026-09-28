@@ -1,37 +1,37 @@
 {
-  "generatedAt": "2026-09-28T09:08:25.387Z",
+  "generatedAt": "2026-09-28T10:02:11.817Z",
   "positionUsd": 5000,
   "pace": 0.1,
   "assets": 7942,
   "assetsWithTokens": 793,
   "tokens": 1310,
-  "noMarket": 791,
-  "noMarketShare": 60.4,
-  "thin": 953,
-  "thinShare": 72.7,
-  "under1k": 54,
-  "medianTradedVolume": 291412.44160648,
+  "noMarket": 789,
+  "noMarketShare": 60.2,
+  "thin": 951,
+  "thinShare": 72.6,
+  "under1k": 52,
+  "medianTradedVolume": 290242.80756881,
   "multiWrapperAssets": 116,
-  "tenXGapAssets": 105,
+  "tenXGapAssets": 106,
   "issuers": [
     {
       "name": "Backed",
       "tokens": 772,
       "noMarket": 647,
-      "thin": 721,
-      "thinShare": 93.4
+      "thin": 720,
+      "thinShare": 93.3
     },
     {
       "name": "Ondo",
       "tokens": 215,
-      "noMarket": 58,
-      "thin": 81,
-      "thinShare": 37.7
+      "noMarket": 56,
+      "thin": 80,
+      "thinShare": 37.2
     },
     {
       "name": "Robinhood",
       "tokens": 109,
-      "noMarket": 35,
+      "noMarket": 36,
       "thin": 70,
       "thinShare": 64.2
     },
@@ -80,7 +80,7 @@
     {
       "name": "PreStocks",
       "tokens": 3,
-      "noMarket": 1,
+      "noMarket": 0,
       "thin": 1,
       "thinShare": 33.3
     },
@@ -162,14 +162,15 @@
       "thinShare": 100
     }
   ],
-  "headline": "Only 27.3% of the 1,310 tokenised real-world asset tokens on CoinMarketCap trade enough to sell a $5,000 position within a day. 60.4% show no trading volume at all.",
+  "headline": "Only 27.4% of the 1,310 tokenised real-world asset tokens on CoinMarketCap trade enough to sell a $5,000 position within a day. 60.2% show no trading volume at all.",
   "sample": {
-    "cryptoId": 37269,
-    "symbol": "WAAPLX",
-    "name": "Wrapped Apple Tokenized stock (xStock)",
-    "underlying": "Apple Inc.",
-    "volume24h": 11890.31035494,
-    "price": 341.3443317096752
+    "cryptoId": 37214,
+    "symbol": "WMSFTX",
+    "name": "Wrapped Microsoft Tokenized stock (xStock)",
+    "underlying": "Microsoft Corp",
+    "volume24h": 20075.23398403,
+    "typicalVolume": 33603.3,
+    "price": 517.5598635693683
   },
-  "credits": 40
+  "credits": 48
 }

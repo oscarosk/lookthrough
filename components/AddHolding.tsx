@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
 import type { ApiResult, CoinRef, Holding } from "@/lib/types";
+import PasteHoldings from "./PasteHoldings";
 
 interface Props {
   call: <T>(url: string) => Promise<ApiResult<T>>;
   onAdd: (h: Holding) => void;
+  onAddMany: (holdings: Holding[]) => void;
 }
 
-export default function AddHolding({ call, onAdd }: Props) {
+export default function AddHolding({ call, onAdd, onAddMany }: Props) {
   const [symbol, setSymbol] = useState("");
   const [matches, setMatches] = useState<CoinRef[] | null>(null);
   const [picked, setPicked] = useState<CoinRef | null>(null);
@@ -47,7 +49,7 @@ export default function AddHolding({ call, onAdd }: Props) {
 
   return (
     <section className="block" id="add" aria-labelledby="add-title">
-      <h2 id="add-title">Add a holding</h2>
+      <h2 id="add-title">Add your holdings</h2>
       <div className="add-row">
         <label>
           Ticker
@@ -86,6 +88,7 @@ export default function AddHolding({ call, onAdd }: Props) {
         </div>
       )}
       {msg && <p className="form-msg" role="status">{msg}</p>}
+      <PasteHoldings call={call} onAddMany={onAddMany} />
     </section>
   );
 }

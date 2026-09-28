@@ -27,7 +27,10 @@ export function qty(n: number): string {
 export function days(n: number): string {
   if (!Number.isFinite(n)) return "no tracked trading";
   if (n < 0.042) return "under an hour";
-  if (n < 1) return `about ${Math.max(1, Math.round(n * 24))} hours`;
+  if (n < 1) {
+    const h = Math.max(1, Math.round(n * 24));
+    return `about ${h} hour${h === 1 ? "" : "s"}`;
+  }
   if (n < 60) return `about ${Math.round(n)} day${Math.round(n) === 1 ? "" : "s"}`;
   return "more than two months";
 }

@@ -69,7 +69,7 @@ export default function HoldingsTable({ holdings, quotes, colors, notes, history
                   </td>
                   <td className="num">
                     {usd(volume, { compact: true })}
-                    <span className="vol-sub">{typical !== null ? `typical day; today ${usd(q?.volume24h ?? null, { compact: true })}` : "last 24h"}</span>
+                    <span className="vol-sub">{typical !== null ? `median of ${hist.days} days; today ${usd(q?.volume24h ?? null, { compact: true })}` : "last 24h"}</span>
                     {dexShare !== null && dexShare > 0.5 && <span className="vol-sub">mostly on DEXs</span>}
                   </td>
                   <td>
@@ -106,7 +106,7 @@ function WrapperNote({ note, symbol }: { note: RowNote; symbol: string }) {
   const lines: string[] = [];
   if (note.busier) {
     lines.push(
-      `Same asset, busier token: ${note.busier.symbol} (${note.busier.issuer}) trades ${usd(note.busier.volume, { compact: true })} a day, ${Math.round(note.busier.ratio)}× ${symbol}. Held as ${note.busier.symbol}, this position would sell in ${days(note.busier.exit.daysToExit)}.`,
+      `Same asset, busier token: ${note.busier.symbol} (${note.busier.issuer}) trades ${usd(note.busier.volume, { compact: true })} in the last 24 hours, ${Math.round(note.busier.ratio)}× ${symbol}. Held as ${note.busier.symbol}, this position would sell in ${days(note.busier.exit.daysToExit)}.`,
     );
   }
   if (note.priceGap !== null && Math.abs(note.priceGap) >= 0.005) {

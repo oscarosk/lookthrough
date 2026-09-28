@@ -12,7 +12,7 @@ export interface LogEntry {
 
 const SOURCE_TEXT = {
   live: "Live call to CoinMarketCap",
-  cache: "Reused a response under 2 minutes old",
+  cache: "Reused a cached response, no credits used",
   snapshot: "CoinMarketCap unreachable, saved snapshot shown",
 } as const;
 
