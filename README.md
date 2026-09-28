@@ -19,7 +19,7 @@ Lookthrough is a portfolio tracker for people who hold crypto and tokenised real
 | **Demo video** | TODO_VIDEO_LINK |
 | **DoraHacks BUIDL** | TODO_BUIDL_LINK |
 
-![Lookthrough showing the verdict, warnings and look-through bars for the sample portfolio](docs/screenshot.png)
+![Lookthrough showing the verdict, warnings and look-through bars for the sample portfolio](docs/screenshot.jpeg)
 
 ## Try it in 30 seconds
 
@@ -59,7 +59,7 @@ A full visit with the sample portfolio uses about 5 to 10 credits. Building the 
 
 ## Evidence of a real API call
 
-![The in-app log of live CoinMarketCap calls, with a raw RWA response expanded](docs/api-log.png)
+![The in-app log of live CoinMarketCap calls, with a raw RWA response expanded](docs/api-log.jpeg)
 
 Every call the app makes is listed in its **CoinMarketCap calls behind this page** panel, with endpoint, parameters, credits and the raw response. The same data from the command line:
 
