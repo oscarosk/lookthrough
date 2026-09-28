@@ -14,7 +14,10 @@ export function pct(n: number | null | undefined, digits = 1): string {
 }
 
 export function signedUsd(n: number): string {
-  return `${n >= 0 ? "+" : "−"}${usd(Math.abs(n))}`;
+  if (Math.abs(n) < 0.005) return "$0.00";
+  const abs = Math.abs(n);
+  const text = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: abs >= 1000 ? 0 : 2, minimumFractionDigits: abs >= 1000 ? 0 : 2 }).format(abs);
+  return `${n >= 0 ? "+" : "−"}${text}`;
 }
 
 export function qty(n: number): string {

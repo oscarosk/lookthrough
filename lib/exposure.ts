@@ -1,6 +1,8 @@
 // Regroup positions by what they really are (underlying) and by who issued them.
 import { NO_ISSUER, type AssetClass } from "./underlying";
 
+const NOT_AN_ISSUER = new Set([NO_ISSUER, "No issuer (derivative)"]);
+
 export interface Position {
   id: number;
   symbol: string;
@@ -9,6 +11,7 @@ export interface Position {
   underlying: string;
   assetClass: AssetClass;
   issuer: string;
+  basis?: "cmc-rwa" | "curated" | "none";
 }
 
 export interface Group {
@@ -19,7 +22,7 @@ export interface Group {
   assetClass?: AssetClass;
 }
 
-export const UNDERLYING_WARN = 0.2;
+export const UNDERLYING_WARN = 0.15;
 export const ISSUER_WARN = 0.3;
 
 function group(positions: Position[], by: (p: Position) => string): Group[] {
@@ -45,7 +48,7 @@ export function byUnderlying(positions: Position[]): Group[] {
 export function byIssuer(positions: Position[]): Group[] {
   const total = positions.reduce((s, p) => s + p.value, 0);
   return group(positions, (p) => p.issuer)
-    .filter((g) => g.label !== NO_ISSUER)
+    .filter((g) => !NOT_AN_ISSUER.has(g.label))
     .map((g) => ({ ...g, share: total > 0 ? g.value / total : 0 }));
 }
 

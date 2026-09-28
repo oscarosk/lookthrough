@@ -1,0 +1,175 @@
+{
+  "generatedAt": "2026-09-28T09:08:25.387Z",
+  "positionUsd": 5000,
+  "pace": 0.1,
+  "assets": 7942,
+  "assetsWithTokens": 793,
+  "tokens": 1310,
+  "noMarket": 791,
+  "noMarketShare": 60.4,
+  "thin": 953,
+  "thinShare": 72.7,
+  "under1k": 54,
+  "medianTradedVolume": 291412.44160648,
+  "multiWrapperAssets": 116,
+  "tenXGapAssets": 105,
+  "issuers": [
+    {
+      "name": "Backed",
+      "tokens": 772,
+      "noMarket": 647,
+      "thin": 721,
+      "thinShare": 93.4
+    },
+    {
+      "name": "Ondo",
+      "tokens": 215,
+      "noMarket": 58,
+      "thin": 81,
+      "thinShare": 37.7
+    },
+    {
+      "name": "Robinhood",
+      "tokens": 109,
+      "noMarket": 35,
+      "thin": 70,
+      "thinShare": 64.2
+    },
+    {
+      "name": "bStocks",
+      "tokens": 79,
+      "noMarket": 0,
+      "thin": 4,
+      "thinShare": 5.1
+    },
+    {
+      "name": "Reality",
+      "tokens": 71,
+      "noMarket": 4,
+      "thin": 28,
+      "thinShare": 39.4
+    },
+    {
+      "name": "Dinari",
+      "tokens": 27,
+      "noMarket": 27,
+      "thin": 27,
+      "thinShare": 100
+    },
+    {
+      "name": "Hyperliquid",
+      "tokens": 12,
+      "noMarket": 12,
+      "thin": 12,
+      "thinShare": 100
+    },
+    {
+      "name": "Backpack",
+      "tokens": 6,
+      "noMarket": 0,
+      "thin": 1,
+      "thinShare": 16.7
+    },
+    {
+      "name": "Unknown",
+      "tokens": 4,
+      "noMarket": 4,
+      "thin": 4,
+      "thinShare": 100
+    },
+    {
+      "name": "PreStocks",
+      "tokens": 3,
+      "noMarket": 1,
+      "thin": 1,
+      "thinShare": 33.3
+    },
+    {
+      "name": "Tether",
+      "tokens": 2,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "Paxos",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "Matrixdock",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "Comtech Gold",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "VNX",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 1,
+      "thinShare": 100
+    },
+    {
+      "name": "Kinesis",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "XAGx",
+      "tokens": 1,
+      "noMarket": 1,
+      "thin": 1,
+      "thinShare": 100
+    },
+    {
+      "name": "Token",
+      "tokens": 1,
+      "noMarket": 1,
+      "thin": 1,
+      "thinShare": 100
+    },
+    {
+      "name": "Tessera",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "Republic",
+      "tokens": 1,
+      "noMarket": 0,
+      "thin": 0,
+      "thinShare": 0
+    },
+    {
+      "name": "Superstate",
+      "tokens": 1,
+      "noMarket": 1,
+      "thin": 1,
+      "thinShare": 100
+    }
+  ],
+  "headline": "Only 27.3% of the 1,310 tokenised real-world asset tokens on CoinMarketCap trade enough to sell a $5,000 position within a day. 60.4% show no trading volume at all.",
+  "sample": {
+    "cryptoId": 37269,
+    "symbol": "WAAPLX",
+    "name": "Wrapped Apple Tokenized stock (xStock)",
+    "underlying": "Apple Inc.",
+    "volume24h": 11890.31035494,
+    "price": 341.3443317096752
+  },
+  "credits": 40
+}

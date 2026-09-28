@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "snapshot": "tsx --env-file=.env.local scripts/snapshot.ts"
+    "snapshot": "tsx --env-file=.env.local scripts/snapshot.ts",
+    "rwa-index": "tsx --env-file=.env.local scripts/build-rwa-index.ts",
+    "census": "tsx --env-file=.env.local scripts/census.ts",
+    "data": "npm run rwa-index && npm run census && npm run snapshot"
   },
   "dependencies": {
     "next": "16.3.6",

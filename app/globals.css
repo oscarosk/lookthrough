@@ -22,7 +22,6 @@ body {
   font-family: var(--font);
   font-size: 16px;
   line-height: 1.5;
-  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -91,7 +90,7 @@ table { width: 100%; border-collapse: collapse; min-width: 820px; }
 th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 0.95rem; }
 thead th { font-size: 0.82rem; color: var(--muted); font-weight: 600; border-bottom: 1.5px solid var(--ink); }
 tbody th { font-weight: 400; }
-.num { text-align: right; white-space: nowrap; }
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tok-sym { font-weight: 700; margin-left: 8px; }
 .tok-name { display: block; margin-left: 20px; font-size: 0.82rem; color: var(--muted); }
 .gain { color: var(--gain); }
@@ -152,3 +151,8 @@ input[type="text"], .add-row input {
   .block { padding: 32px 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.wrapper-note { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; max-width: 280px; }
+.wrapper-note li { font-size: 0.8rem; color: var(--ink); padding-left: 8px; border-left: 2px solid var(--line); }
+.census-headline { font-size: clamp(1.25rem, 2.6vw, 1.7rem); line-height: 1.25; font-weight: 700; letter-spacing: -0.015em; max-width: 40ch; margin: 8px 0 16px; }
+.census-facts { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; max-width: 72ch; }

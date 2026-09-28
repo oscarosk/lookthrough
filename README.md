@@ -31,8 +31,10 @@ Lookthrough is a portfolio tracker for people who hold crypto and tokenised real
 | `GET /v2/cryptocurrency/quotes/latest` | Price, 24h volume and 24h change for every holding, in one call per portfolio | 2 minutes |
 | `GET /v1/cryptocurrency/map` | Turning tickers into CoinMarketCap IDs, and choosing between tokens that share a ticker | 24 hours |
 | `GET /v1/key/info` | Health check of plan and credit usage (0 credits) | 30 seconds |
-
-<!-- TODO: add RWA endpoints here if the Startup upgrade enables them -->
+| `GET /v5/real-world-assets/quotes/latest` | For each tokenised holding: its real-world asset, and every other token CMC tracks for that asset (price, volume, issuer) | 5 minutes |
+| `GET /v5/real-world-assets/issuers/list` | All RWA issuers, for the token → asset → issuer index (`npm run rwa-index`) | build step |
+| `GET /v5/real-world-assets/issuers` | Every token each issuer has created, with its `crypto_id` and `rwa_id` | build step |
+| `GET /v5/real-world-assets/assets/list` | Every tracked real-world asset, for the census (`npm run census`) | build step |
 
 ## Evidence of a real API call
 
@@ -61,9 +63,15 @@ Next.js route handlers on Vercel  ── API key stays here
 pro-api.coinmarketcap.com
 ```
 
-- **Look-through mapping** ([`lib/underlying.ts`](lib/underlying.ts)): a documented table from token to underlying asset and issuer. Tokenised stocks named "… xStock" are recognised automatically. Anything unknown counts as its own bet.
+- **Look-through from CoinMarketCap's RWA data** ([`lib/rwa-index.ts`](lib/rwa-index.ts), [`app/api/rwa/route.ts`](app/api/rwa/route.ts)): the issuer endpoints link each token's `crypto_id` to the real-world asset it represents (`rwa_id`) and its issuer. Lookthrough saves that link table once, then asks `/v5/real-world-assets/quotes/latest` live for the assets you hold. This is what lets it say that PAXG and XAUt are both gold, and that a busier token exists for the same stock.
+- **Crypto wrappers and stablecoins** ([`lib/underlying.ts`](lib/underlying.ts)): a short curated table (WBTC is Bitcoin, stETH is Ether, USDT is dollars issued by Tether). Anything unknown counts as its own bet.
+- **Wrapper comparison** ([`lib/rwa.ts`](lib/rwa.ts)): for each tokenised holding, the other tokens for the same asset are compared on 24h volume and price. Derivative "tokens" are ignored because they are not claims on the asset.
 - **Exit check** ([`lib/exitCheck.ts`](lib/exitCheck.ts)): days to sell = position value ÷ (10% of 24h volume). 10% is a common rule of thumb for selling without moving the price; the UI says so.
 - **Honest data labels:** every response records whether it was live, reused from the cache, or served from the snapshot. The header shows how fresh the prices are.
+
+## The census
+
+`npm run census` reads every real-world asset on CoinMarketCap and the 24h volume of every token behind them, then asks how many could absorb a modest $5,000 sale in a day. The result is shown in the app and written to [`docs/CENSUS.md`](docs/CENSUS.md). It also picks a well-known stock whose token trades thinly, which the sample portfolio includes so the exit check has something real to show.
 
 ## Reliability during judging
 
@@ -86,7 +94,7 @@ Other scripts:
 ```bash
 npm test           # unit tests for look-through, exit check and response parsing
 npm run lint
-npm run snapshot   # refresh data/snapshots.json from the live API
+npm run data       # rebuild the RWA index, run the census, save snapshots (about 70 credits)
 ```
 
 The API key is read only on the server from `CMC_API_KEY` and is never sent to the browser or committed.

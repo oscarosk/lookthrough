@@ -2,15 +2,22 @@ import { exitCheck, GRADE_LABEL, PARTICIPATION } from "@/lib/exitCheck";
 import { days, pct, qty, signedUsd, usd } from "@/lib/format";
 import type { Holding, Quote } from "@/lib/types";
 
+export interface RowNote {
+  tokenCount: number;
+  priceGap: number | null;
+  busier: { symbol: string; issuer: string; volume: number; ratio: number } | null;
+}
+
 interface Props {
   holdings: Holding[];
+  notes: Record<number, RowNote>;
   quotes: Record<number, Quote>;
   colors: Map<string, string>;
   underlyingOf: (h: Holding) => string;
   onRemove: (id: number) => void;
 }
 
-export default function HoldingsTable({ holdings, quotes, colors, underlyingOf, onRemove }: Props) {
+export default function HoldingsTable({ holdings, quotes, colors, notes, underlyingOf, onRemove }: Props) {
   return (
     <section className="block" aria-labelledby="h-title">
       <h2 id="h-title">Could you sell it?</h2>
@@ -49,7 +56,7 @@ export default function HoldingsTable({ holdings, quotes, colors, underlyingOf, 
                   <td className="num">{qty(h.quantity)}</td>
                   <td className="num">{q ? usd(price) : <span className="muted">loading</span>}</td>
                   <td className="num">{usd(value)}</td>
-                  <td className={`num ${pnl === null ? "" : pnl >= 0 ? "gain" : "loss"}`}>{pnl === null ? <span className="muted">no buy price</span> : signedUsd(pnl)}</td>
+                  <td className={`num ${pnl === null || Math.abs(pnl) < 0.005 ? "" : pnl > 0 ? "gain" : "loss"}`}>{pnl === null ? <span className="muted">no buy price</span> : signedUsd(pnl)}</td>
                   <td className="num">{usd(q?.volume24h ?? null, { compact: true })}</td>
                   <td>
                     {exit ? (
@@ -64,6 +71,7 @@ export default function HoldingsTable({ holdings, quotes, colors, underlyingOf, 
                     ) : (
                       <span className="muted">—</span>
                     )}
+                    {notes[h.id] && <WrapperNote note={notes[h.id]} symbol={h.symbol} />}
                   </td>
                   <td>
                     <button type="button" className="link-btn" onClick={() => onRemove(h.id)} aria-label={`Remove ${h.symbol}`}>
@@ -77,5 +85,20 @@ export default function HoldingsTable({ holdings, quotes, colors, underlyingOf, 
         </table>
       </div>
     </section>
+  );
+}
+
+function WrapperNote({ note, symbol }: { note: RowNote; symbol: string }) {
+  const lines: string[] = [];
+  if (note.busier) lines.push(`Same asset, busier token: ${note.busier.symbol} (${note.busier.issuer}) trades ${usd(note.busier.volume, { compact: true })} a day, ${Math.round(note.busier.ratio)}× ${symbol}.`);
+  if (note.priceGap !== null && Math.abs(note.priceGap) >= 0.005)
+    lines.push(`${symbol} is ${pct(Math.abs(note.priceGap))} ${note.priceGap > 0 ? "above" : "below"} the average price of all ${note.tokenCount} tokens for this asset.`);
+  if (lines.length === 0) return null;
+  return (
+    <ul className="wrapper-note">
+      {lines.map((l) => (
+        <li key={l}>{l}</li>
+      ))}
+    </ul>
   );
 }

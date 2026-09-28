@@ -5,6 +5,7 @@ interface Props {
   positions: Position[];
   underlying: Group[];
   colors: Map<string, string>;
+  rwaCount: number;
 }
 
 function Bar({ segments, label }: { segments: { key: string; name: string; share: number; color: string; value: number }[]; label: string }) {
@@ -22,7 +23,7 @@ function Bar({ segments, label }: { segments: { key: string; name: string; share
   );
 }
 
-export default function Lookthrough({ positions, underlying, colors }: Props) {
+export default function Lookthrough({ positions, underlying, colors, rwaCount }: Props) {
   const total = positions.reduce((s, p) => s + p.value, 0);
   // Tokens ordered so wrappers of the same underlying sit side by side.
   const order = new Map(underlying.map((g, i) => [g.label, i]));
@@ -33,7 +34,9 @@ export default function Lookthrough({ positions, underlying, colors }: Props) {
   return (
     <section className="block" aria-labelledby="lt-title">
       <h2 id="lt-title">What you hold, and what it really is</h2>
-      <p className="lede">Top bar: each token. Bottom bar: the same money regrouped by what the tokens represent. Same colour means same underlying bet.</p>
+      <p className="lede">Top bar: each token. Bottom bar: the same money regrouped by what the tokens represent. Same colour means same underlying bet.
+        {rwaCount > 0 && ` ${rwaCount} of your tokens were matched to their real-world asset and issuer using CoinMarketCap's RWA data.`}
+      </p>
       <div className="bars">
         <Bar
           label="By token"

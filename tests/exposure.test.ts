@@ -39,3 +39,14 @@ describe("look-through exposure", () => {
     expect(lookThrough("ABCX", "Coinbase xStock")).toMatchObject({ underlying: "Coinbase", assetClass: "Stocks" });
   });
 });
+
+describe("CMC RWA data takes priority", () => {
+  it("uses the RWA asset and normalised issuer when available", () => {
+    const u = lookThrough("NVDAX", "NVIDIA tokenized stock (xStock)", { assetName: "Nvidia Corp", assetType: "stock", issuer: "Backed" });
+    expect(u).toMatchObject({ underlying: "Nvidia Corp", assetClass: "Stocks", issuer: "Backed", basis: "cmc-rwa" });
+  });
+
+  it("falls back to the name pattern for xStocks", () => {
+    expect(lookThrough("NVDAX", "NVIDIA tokenized stock (xStock)")).toMatchObject({ underlying: "NVIDIA", issuer: "Backed" });
+  });
+});

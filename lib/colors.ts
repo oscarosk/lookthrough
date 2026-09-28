@@ -5,7 +5,10 @@ const SHADES: Record<AssetClass, string[]> = {
   Cash: ["#56796A", "#83A294"],
   Gold: ["#B5872A", "#D1AE5E"],
   Treasuries: ["#2C7472", "#5A9D9A"],
-  Stocks: ["#8E3B2C", "#B5644F", "#6C4B7C", "#946E9E"],
+  Stocks: ["#8E3B2C", "#B5644F", "#6C4B7C", "#946E9E", "#A8483A"],
+  Commodities: ["#7A6A3A", "#A08F5C"],
+  Funds: ["#4B5E8A", "#7485AE"],
+  "Real estate": ["#6B5A4A", "#927F6D"],
 };
 
 /** One colour per underlying, grouped by asset class so related bets look related. */

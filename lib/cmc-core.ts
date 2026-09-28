@@ -43,10 +43,7 @@ export async function cmcFetch(
   const url = new URL(path, CMC_BASE);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url, {
-    headers: { "X-CMC_PRO_API_KEY": apiKey, Accept: "application/json" },
-    cache: "no-store",
-  });
+  const res = await fetchWithRetry(url, apiKey);
 
   let json: CmcResponse | null = null;
   try {
@@ -63,4 +60,23 @@ export async function cmcFetch(
     throw new CmcError(`CoinMarketCap ${path}: ${msg}`, res.status, Number.isNaN(code) ? null : code);
   }
   return json;
+}
+
+/** Network errors (dropped connections) are retried up to 3 times. */
+async function fetchWithRetry(url: URL, apiKey: string, attempts = 3): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(url, {
+        headers: { "X-CMC_PRO_API_KEY": apiKey, Accept: "application/json" },
+        cache: "no-store",
+      });
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  const cause = (lastErr as { cause?: { code?: string; message?: string } })?.cause;
+  const detail = cause?.code ?? cause?.message ?? (lastErr instanceof Error ? lastErr.message : "unknown");
+  throw new CmcError(`Could not connect to CoinMarketCap after ${attempts} tries (${detail})`, 503, null);
 }

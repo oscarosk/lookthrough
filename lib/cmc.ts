@@ -6,7 +6,7 @@ import { cacheKey, cmcFetch, CmcError, type CmcResponse } from "./cmc-core";
 import type { CallMeta } from "./types";
 
 const memory = new Map<string, { at: number; json: CmcResponse }>();
-const SNAPSHOTS = snapshots as Record<string, CmcResponse>;
+const SNAPSHOTS = snapshots as unknown as Record<string, CmcResponse>;
 
 function preview(json: unknown): string {
   const text = JSON.stringify(json, null, 2);

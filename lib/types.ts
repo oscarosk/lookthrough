@@ -19,7 +19,8 @@ export interface CallMeta {
 export interface ApiOk<T> {
   ok: true;
   data: T;
-  meta: CallMeta;
+  /** Absent when no CoinMarketCap call was needed. */
+  meta?: CallMeta;
 }
 
 export interface ApiErr {
@@ -56,4 +57,32 @@ export interface Holding {
   quantity: number;
   /** Price paid per unit in USD. Null means "not entered", so no PnL. */
   buyPrice: number | null;
+}
+
+/** One on-chain token that represents a real-world asset. */
+export interface RwaToken {
+  cryptoId: number;
+  symbol: string;
+  name: string;
+  issuerName: string | null;
+  price: number | null;
+  volume24h: number | null;
+  marketCap: number | null;
+}
+
+/** A real-world asset (Nvidia, Gold…) and every token CMC tracks for it. */
+export interface RwaAsset {
+  rwaId: number;
+  name: string;
+  symbol: string;
+  assetType: string;
+  averageTokenizedPrice: number | null;
+  tokenizedVolume24h: number | null;
+  tokens: RwaToken[];
+}
+
+export interface RwaLookup {
+  /** crypto_id → the RWA asset it represents and who issued it. */
+  links: Record<number, { rwaId: number; issuerName: string }>;
+  assets: Record<number, RwaAsset>;
 }

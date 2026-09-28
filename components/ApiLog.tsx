@@ -31,7 +31,9 @@ export default function ApiLog({ entries }: { entries: LogEntry[] }) {
             <li key={e.n}>
               <div className="log-head">
                 <code>GET {e.meta?.endpoint ?? e.route}</code>
-                <span className={e.ok ? `src src-${e.meta?.source}` : "src src-err"}>{e.ok && e.meta?.source ? SOURCE_TEXT[e.meta.source] : "Failed"}</span>
+                <span className={e.ok ? `src src-${e.meta?.source ?? "cache"}` : "src src-err"}>
+                  {!e.ok ? "Failed" : e.meta?.source ? SOURCE_TEXT[e.meta.source] : "No CoinMarketCap call needed"}
+                </span>
               </div>
               <p className="log-sub">
                 {e.meta?.params && Object.keys(e.meta.params).length > 0 && (
@@ -39,7 +41,9 @@ export default function ApiLog({ entries }: { entries: LogEntry[] }) {
                     Params <code>{Object.entries(e.meta.params).map(([k, v]) => `${k}=${v}`).join("&")}</code>.{" "}
                   </>
                 )}
-                {e.ok ? (
+                {e.ok && !e.meta ? (
+                  <>Answered from Lookthrough&apos;s index of CoinMarketCap RWA tokens: none of these holdings are tokenised real-world assets.</>
+                ) : e.ok ? (
                   <>
                     CMC timestamp {timeAgo(e.meta?.cmcTimestamp ?? null)}, {e.meta?.creditCount ?? 0} credit(s), {e.meta?.elapsedMs ?? 0} ms at CMC.
                   </>

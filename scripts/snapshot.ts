@@ -2,39 +2,46 @@
 // data/snapshots.json. The app serves these, clearly labelled, only when a
 // live call fails (for example after the hackathon key reverts to Basic).
 //
-// Run: npm run snapshot   (reads CMC_API_KEY from .env.local)
+// Run after rwa-index and census: npm run snapshot
 import { writeFileSync } from "node:fs";
 import { cacheKey, cmcFetch, type CmcResponse } from "../lib/cmc-core";
 import { parseMap, pickBest } from "../lib/parse";
-import { SAMPLE } from "../lib/portfolio";
+import { rwaLink } from "../lib/rwa-index";
+import { sampleExtras, sampleSymbols } from "../lib/sample";
 
 async function main() {
   const apiKey = process.env.CMC_API_KEY;
   if (!apiKey) throw new Error("Set CMC_API_KEY in .env.local first");
-
   const out: Record<string, CmcResponse> = {};
 
-  // Same params the /api/resolve route builds for the sample button.
-  const symbols = [...new Set(SAMPLE.map((s) => s.symbol.toUpperCase()))].sort();
+  // Same params /api/resolve builds for the sample button.
+  const symbols = sampleSymbols();
   const mapParams = { symbol: symbols.join(",") };
   const map = await cmcFetch("/v1/cryptocurrency/map", mapParams, apiKey);
   out[cacheKey("/v1/cryptocurrency/map", mapParams)] = map;
 
   const coins = parseMap(map.data);
-  const ids = symbols
-    .map((s) => pickBest(coins.filter((c) => c.symbol.toUpperCase() === s))?.id)
+  const ids = [
+    ...symbols.map((s) => pickBest(coins.filter((c) => c.symbol.toUpperCase() === s))?.id),
+    ...sampleExtras().map((e) => e.cryptoId),
+  ]
     .filter((id): id is number => typeof id === "number")
+    .filter((id, i, all) => all.indexOf(id) === i)
     .sort((a, b) => a - b);
 
-  // Same params the /api/quotes route builds.
+  // Same params /api/quotes builds.
   const quoteParams = { id: ids.join(","), convert: "USD" };
-  const quotes = await cmcFetch("/v2/cryptocurrency/quotes/latest", quoteParams, apiKey);
-  out[cacheKey("/v2/cryptocurrency/quotes/latest", quoteParams)] = quotes;
+  out[cacheKey("/v2/cryptocurrency/quotes/latest", quoteParams)] = await cmcFetch("/v2/cryptocurrency/quotes/latest", quoteParams, apiKey);
 
-  writeFileSync("data/snapshots.json", JSON.stringify(out, null, 2) + "\n");
-  const missing = symbols.filter((s) => !coins.some((c) => c.symbol.toUpperCase() === s));
-  console.log(`Saved ${Object.keys(out).length} responses for ${ids.length} tokens.`);
-  if (missing.length) console.log(`Not found on CoinMarketCap: ${missing.join(", ")}`);
+  // Same params /api/rwa builds.
+  const rwaIds = [...new Set(ids.map((id) => rwaLink(id)?.rwaId).filter((x): x is number => typeof x === "number"))].sort((a, b) => a - b);
+  if (rwaIds.length) {
+    const rwaParams = { rwa_id: rwaIds.join(","), skip_invalid: "true" };
+    out[cacheKey("/v5/real-world-assets/quotes/latest", rwaParams)] = await cmcFetch("/v5/real-world-assets/quotes/latest", rwaParams, apiKey);
+  }
+
+  writeFileSync("data/snapshots.json", JSON.stringify(out) + "\n");
+  console.log(`Saved ${Object.keys(out).length} responses covering ${ids.length} tokens and ${rwaIds.length} real-world assets.`);
 }
 
 main().catch((err) => {
