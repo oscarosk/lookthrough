@@ -107,6 +107,8 @@ flowchart TD
     L <--> CMC["pro-api.coinmarketcap.com"]
 ```
 
+**IDs, not symbols.** Tickers collide (several tokens share "NVDA"), so Lookthrough resolves a ticker to its CoinMarketCap ID once, through `/v1/cryptocurrency/map`, and makes every price, history and RWA call by ID.
+
 **Token → asset → issuer.** The RWA issuer endpoints list every token each issuer has created, with its ordinary CoinMarketCap `crypto_id` and the `rwa_id` of the asset it represents. `npm run rwa-index` saves that link table ([`data/rwa-index.json`](data/rwa-index.json), 1,444 linked tokens), so looking up a holding costs no credits. The app then calls `/v5/real-world-assets/quotes/latest` live for the assets you hold. Crypto wrappers and stablecoins that are not RWAs (WBTC, stETH, USDT…) come from a short curated table in [`lib/underlying.ts`](lib/underlying.ts). Anything unknown counts as its own bet.
 
 ```mermaid
@@ -145,7 +147,7 @@ Holdings are stored only in your browser. A shared link carries the portfolio af
 
 **Made possible.** One RWA quotes call returns every token for an asset, with issuer, price and volume, which is the whole basis of the wrapper comparison. The issuer endpoints expose the `crypto_id` ↔ `rwa_id` link that turns a list of tokens into a look-through. The v3 quotes add a CEX/DEX split of volume, and historical quotes let the exit check use a typical day instead of today. A whole portfolio refresh costs about one credit.
 
-**Got in the way.** Each item below happened while building Lookthrough and can be reproduced:
+**Got in the way.** Items 1 to 10 happened while building Lookthrough and can be reproduced; 11 and 12 are gaps we ran into when designing it:
 
 1. **`error_code` type differs between endpoints and from the docs.** The RWA reference documents `error_code` as an integer. `/v5/real-world-assets/*` and `/v3/cryptocurrency/quotes/latest` return the string `"0"` with `error_message: ""`, while `/v1/cryptocurrency/map` and `/v1/key/info` return the integer `0` with `error_message: null`. Our first RWA integration treated every successful v5 call as an error. Suggestion: one type everywhere, matching the docs.
 2. **No direct way from a token to its real-world asset.** Given a `crypto_id` (for example 36992, NVDAX), there is no parameter or field that returns its `rwa_id`. We crawled every issuer's token list, about 30 calls and 30 credits, to build that index. Suggestion: accept `crypto_id` on `/v5/real-world-assets/quotes/latest`, or add `rwa_id` to `/v3/cryptocurrency/quotes/latest` and `/v2/cryptocurrency/info`.
@@ -157,11 +159,14 @@ Holdings are stored only in your browser. A shared link carries the portfolio af
 8. **Derivatives share the token list with redeemable tokens.** They appear under an issuer named `"NA (Derivatives)"`, with `market_cap: 0`. A token-type field would be cleaner than matching an issuer name.
 9. **Empty issuers.** `/v5/real-world-assets/issuers/list` includes issuers with `num_tokens: 0` (Bitget Assets, Coinbase, Swarm Assets).
 10. **Hackathon access.** Our Startup upgrade arrived after a support ticket, a few days before the deadline. The plan comparison page answered our access questions faster than the Q&A.
+11. **No field for whether a tokenisation is authorised by the issuing company.** For a holder, and even more for an institution, it matters whether Nvidia itself agreed to an Nvidia token. RWA info and quotes do not say.
+12. **Short history for RWA tokens.** Tokenised assets only have roughly 18 months of data, and token prices drift slightly from the underlying. With a reference price (item 4) and longer series, tools like Lookthrough could show that drift directly.
 
 ## Limitations
 
 - Sample amounts and buy prices are illustrative.
 - The census and snapshot are point-in-time measurements, dated in the app. Reported volume can include low-quality venues.
+- `data/` contains a small set of CoinMarketCap responses (the sample portfolio's quotes and history, and the token → asset index) kept only as an outage fallback for the demo. All market data is © CoinMarketCap.
 - Not financial advice.
 
 ## Run it locally
