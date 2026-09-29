@@ -6,6 +6,7 @@
 import { writeFileSync } from "node:fs";
 import { cacheKey, cmcFetch, type CmcResponse } from "../lib/cmc-core";
 import { parseMap, pickBest } from "../lib/parse";
+import { METALS } from "../lib/metals";
 import { rwaLink } from "../lib/rwa-index";
 import { sampleExtras, sampleSymbols } from "../lib/sample";
 
@@ -30,18 +31,29 @@ async function main() {
     .sort((a, b) => a - b);
 
   // Same params /api/quotes builds.
-  const quoteParams = { id: ids.join(","), convert: "USD" };
+  const quoteParams = { id: ids.join(","), convert: "USD", skip_invalid: "true" };
   out[cacheKey("/v3/cryptocurrency/quotes/latest", quoteParams)] = await cmcFetch("/v3/cryptocurrency/quotes/latest", quoteParams, apiKey);
 
   // Same params /api/history builds.
   const historyParams = { id: ids.join(","), count: "30", interval: "daily", convert: "USD" };
   out[cacheKey("/v3/cryptocurrency/quotes/historical", historyParams)] = await cmcFetch("/v3/cryptocurrency/quotes/historical", historyParams, apiKey);
 
+  // Same params /api/chains builds.
+  const infoParams = { id: ids.join(",") };
+  out[cacheKey("/v2/cryptocurrency/info", infoParams)] = await cmcFetch("/v2/cryptocurrency/info", infoParams, apiKey);
+
   // Same params /api/rwa builds.
   const rwaIds = [...new Set(ids.map((id) => rwaLink(id)?.rwaId).filter((x): x is number => typeof x === "number"))].sort((a, b) => a - b);
   if (rwaIds.length) {
     const rwaParams = { rwa_id: rwaIds.join(","), skip_invalid: "true" };
     out[cacheKey("/v5/real-world-assets/quotes/latest", rwaParams)] = await cmcFetch("/v5/real-world-assets/quotes/latest", rwaParams, apiKey);
+  }
+
+  // Same params /api/metals builds, for held gold and silver tokens.
+  const metalIds = [...new Set(rwaIds.map((r) => METALS[r]?.cmcId).filter((x): x is number => typeof x === "number"))].sort((a, b) => a - b);
+  for (const id of metalIds) {
+    const params = { amount: "1", convert: "USD", id: String(id) };
+    out[cacheKey("/v2/tools/price-conversion", params)] = await cmcFetch("/v2/tools/price-conversion", params, apiKey);
   }
 
   writeFileSync("data/snapshots.json", JSON.stringify(out) + "\n");

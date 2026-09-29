@@ -2,9 +2,18 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://lookthrough-tau.vercel.app"),
   title: "Lookthrough: what your tokens really own",
   description:
     "Portfolio look-through for crypto and tokenised assets. See your real exposure, the issuers you depend on, and whether you could sell each position. Powered by the CoinMarketCap API.",
+  openGraph: {
+    title: "Lookthrough: what your tokens really own",
+    description: "What your crypto and tokenised assets really own, who you are trusting, and whether you could sell. Built on the CoinMarketCap API.",
+    url: "https://lookthrough-tau.vercel.app",
+    siteName: "Lookthrough",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

@@ -87,7 +87,9 @@ export function compareWrappers(asset: RwaAsset, cryptoId: number, myPrice: numb
   return {
     busier: busiest && ratio !== null && ratio >= 3 ? busiest : null,
     busierRatio: ratio,
-    priceGap: avg && myPrice ? myPrice / avg - 1 : null,
+    // Tokens for one asset can be priced in different units (a gram vs a troy ounce of
+    // gold), so a large gap is almost always a unit mismatch, not a real premium.
+    priceGap: avg && myPrice && Math.abs(myPrice / avg - 1) <= 0.2 ? myPrice / avg - 1 : null,
     tokenCount: real.length,
   };
 }

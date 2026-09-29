@@ -6,19 +6,22 @@ export interface RowNote {
   tokenCount: number;
   priceGap: number | null;
   busier: { symbol: string; issuer: string; volume: number; ratio: number; exit: ExitResult } | null;
+  /** For gold and silver tokens: premium over the metal's spot price. */
+  spot: { metal: string; gap: number; unit: string } | null;
 }
 
 interface Props {
   holdings: Holding[];
   notes: Record<number, RowNote>;
   history: Record<number, VolumeHistory>;
+  logos: Record<number, string | null>;
   quotes: Record<number, Quote>;
   colors: Map<string, string>;
   underlyingOf: (h: Holding) => string;
   onRemove: (id: number) => void;
 }
 
-export default function HoldingsTable({ holdings, quotes, colors, notes, history, underlyingOf, onRemove }: Props) {
+export default function HoldingsTable({ holdings, quotes, colors, notes, history, logos, underlyingOf, onRemove }: Props) {
   return (
     <section className="block" aria-labelledby="h-title">
       <h2 id="h-title">Could you sell it?</h2>
@@ -58,6 +61,10 @@ export default function HoldingsTable({ holdings, quotes, colors, notes, history
                 <tr key={h.id}>
                   <th scope="row">
                     <span className="swatch" style={{ background: colors.get(underlyingOf(h)) ?? "#999" }} />
+                    {logos[h.id] && (
+                      // eslint-disable-next-line @next/next/no-img-element -- small remote logo from CoinMarketCap metadata
+                      <img className="tok-logo" src={logos[h.id] as string} alt="" width={18} height={18} loading="lazy" />
+                    )}
                     <span className="tok-sym">{h.symbol}</span>
                     <span className="tok-name">{h.name}</span>
                   </th>
@@ -107,6 +114,12 @@ function WrapperNote({ note, symbol }: { note: RowNote; symbol: string }) {
   if (note.busier) {
     lines.push(
       `Same asset, busier token: ${note.busier.symbol} (${note.busier.issuer}) trades ${usd(note.busier.volume, { compact: true })} in the last 24 hours, ${Math.round(note.busier.ratio)}× ${symbol}. Held as ${note.busier.symbol}, this position would sell in ${days(note.busier.exit.daysToExit)}.`,
+    );
+  }
+  if (note.spot) {
+    const g = note.spot.gap;
+    lines.push(
+      `${Math.abs(g) < 0.0005 ? "In line with" : `${pct(Math.abs(g), 2)} ${g > 0 ? "above" : "below"}`} the spot price of ${note.spot.metal}${note.spot.unit !== "troy ounce" ? ` (priced per ${note.spot.unit})` : ""}.`,
     );
   }
   if (note.priceGap !== null && Math.abs(note.priceGap) >= 0.005) {

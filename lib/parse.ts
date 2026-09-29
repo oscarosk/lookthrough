@@ -111,3 +111,39 @@ export function pickBest(candidates: CoinRef[]): CoinRef | null {
   if (candidates.length === 0) return null;
   return [...candidates].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity))[0];
 }
+
+export interface TokenInfo {
+  /** Main blockchain the token is issued on; null for native coins (BTC, ETH…). */
+  chain: string | null;
+  logo: string | null;
+  /** CoinMarketCap's notice about a significant event affecting the token, as plain text. */
+  notice: string | null;
+}
+
+function plainText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").replace(/\s+([.,;:!?])/g, "$1").trim();
+  if (!text) return null;
+  return text.length > 280 ? `${text.slice(0, 277)}…` : text;
+}
+
+/** Chain (`platform.name`) and logo per id from /v2/cryptocurrency/info. */
+export function parseInfo(data: unknown): Record<number, TokenInfo> {
+  const out: Record<number, TokenInfo> = {};
+  for (const raw of entries(data)) {
+    const e = raw as { id?: unknown; platform?: { name?: unknown } | null; logo?: unknown; notice?: unknown } | null;
+    if (!e || typeof e.id !== "number") continue;
+    out[e.id] = {
+      chain: e.platform && typeof e.platform.name === "string" ? e.platform.name : null,
+      logo: typeof e.logo === "string" && e.logo.startsWith("https://") ? e.logo : null,
+      notice: plainText(e.notice),
+    };
+  }
+  return out;
+}
+
+/** USD price from /v2/tools/price-conversion (an object when asked by id, an array by symbol). */
+export function parseConversionPrice(data: unknown): number | null {
+  const first = Array.isArray(data) ? data[0] : data;
+  return usdQuote((first as { quote?: unknown } | null)?.quote)?.price ?? null;
+}

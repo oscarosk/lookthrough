@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ ok: false, error: "Pass ?ids=1,1027" } satisfies ApiResult<never>, { status: 400 });
   }
   // Sorted ids give one cache entry per portfolio, whatever the order.
-  const params = { id: [...new Set(ids)].sort((a, b) => a - b).join(","), convert: "USD" };
+  const params = { id: [...new Set(ids)].sort((a, b) => a - b).join(","), convert: "USD", skip_invalid: "true" };
   try {
     const { json, meta } = await getCmc("/v3/cryptocurrency/quotes/latest", params, 120);
     const body: ApiResult<Quote[]> = { ok: true, data: parseQuotes(json.data), meta };

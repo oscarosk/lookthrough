@@ -39,6 +39,12 @@ describe("RWA quotes", () => {
     expect(w.priceGap).toBeCloseTo(0.0014, 3);
   });
 
+  it("hides price gaps that are really unit mismatches", () => {
+    const [a] = parseRwaQuotes(nvidia);
+    // A token priced 30x the average (per ounce vs per gram) is not a real premium.
+    expect(compareWrappers(a, 36992, 223.2187 * 31.1, 8279750.56).priceGap).toBeNull();
+  });
+
   it("normalises issuer names", () => {
     expect(normalizeIssuer("Backed Assets")).toBe("Backed");
     expect(normalizeIssuer("Tether Holdings")).toBe("Tether");

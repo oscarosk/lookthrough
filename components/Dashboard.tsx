@@ -3,10 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddHolding from "./AddHolding";
 import ApiLog, { type LogEntry } from "./ApiLog";
 import Census from "./Census";
+import Chains from "./Chains";
 import HoldingsTable, { type RowNote } from "./HoldingsTable";
 import Issuers from "./Issuers";
 import Lookthrough from "./Lookthrough";
+import { byChain, chainConcentration } from "@/lib/chains";
 import { colorMap } from "@/lib/colors";
+import { METALS, spotGap } from "@/lib/metals";
 import { exitCheck, isHardToSell } from "@/lib/exitCheck";
 import { byIssuer, byUnderlying, countBets, hiddenConcentration, ISSUER_WARN, UNDERLYING_WARN, type Position } from "@/lib/exposure";
 import { days, pct, signedUsd, timeAgo, usd } from "@/lib/format";
@@ -14,6 +17,7 @@ import { loadHoldings, SAMPLE, saveHoldings } from "@/lib/portfolio";
 import { compareWrappers, normalizeIssuer } from "@/lib/rwa";
 import { sampleExtras } from "@/lib/sample";
 import { holdingsFromLocation, shareUrl } from "@/lib/share";
+import type { TokenInfo } from "@/lib/parse";
 import type { ApiResult, CoinRef, DataSource, Holding, Quote, RwaLookup, VolumeHistory } from "@/lib/types";
 import { lookThrough, type RwaHint } from "@/lib/underlying";
 
@@ -29,6 +33,8 @@ export default function Dashboard() {
   const [quotes, setQuotes] = useState<Record<number, Quote>>({});
   const [rwa, setRwa] = useState<RwaLookup>(EMPTY_RWA);
   const [history, setHistory] = useState<Record<number, VolumeHistory>>({});
+  const [info, setInfo] = useState<Record<number, TokenInfo>>({});
+  const [spot, setSpot] = useState<Record<number, number | null>>({});
   const [log, setLog] = useState<LogEntry[]>([]);
   const [notice, setNotice] = useState<string | null>(shared ? "Opened a shared portfolio. It now replaces the portfolio saved in this browser." : null);
   const [loadingSample, setLoadingSample] = useState(false);
@@ -43,8 +49,9 @@ export default function Dashboard() {
     } catch {
       body = { ok: false, error: "Could not reach the Lookthrough server. Check your connection." };
     }
+    // Take the number now: several calls can finish before React runs the update.
     const n = ++counter.current;
-    setLog((l) => [...l, { n,at: new Date().toISOString(), route: url, ok: body.ok, error: body.ok ? undefined : body.error, meta: body.meta }]);
+    setLog((l) => [...l, { n, at: new Date().toISOString(), route: url, ok: body.ok, error: body.ok ? undefined : body.error, meta: body.meta }]);
     return body;
   }, []);
 
@@ -111,6 +118,44 @@ export default function Dashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the set of holdings changes
   }, [call, idsKey]);
+
+  // Chains change almost never: fetch once per set of holdings. If it fails, the section stays hidden.
+  useEffect(() => {
+    if (!idsKey) return;
+    const missing = idsKey.split(",").some((id) => !(Number(id) in info));
+    if (!missing) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const c = await call<Record<number, TokenInfo>>(`/api/chains?ids=${idsKey}`);
+      if (!cancelled && c.ok) setInfo((prev) => ({ ...prev, ...c.data }));
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when the set of holdings changes
+  }, [call, idsKey]);
+
+  // Spot gold and silver, when the portfolio holds tokens for them.
+  const metalKey = useMemo(
+    () =>
+      [...new Set(Object.values(rwa.links).map((l) => METALS[l.rwaId]?.cmcId).filter((x): x is number => typeof x === "number"))]
+        .sort((a, b) => a - b)
+        .join(","),
+    [rwa],
+  );
+  useEffect(() => {
+    if (!metalKey) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const m = await call<Record<number, number | null>>(`/api/metals?ids=${metalKey}`);
+      if (!cancelled && m.ok) setSpot((prev) => ({ ...prev, ...m.data }));
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [call, metalKey]);
 
   /** Volume on a typical recent day (30-day median), falling back to the last 24h. */
   const typicalVolume = useCallback(
@@ -206,6 +251,11 @@ export default function Dashboard() {
   const pnl = withCost.reduce((s, h) => s + ((quotes[h.id].price as number) - (h.buyPrice as number)) * h.quantity, 0);
   const hard = positions.filter((p) => isHardToSell(exitCheck(p.value, typicalVolume(p.id))));
   const bets = countBets(positions);
+  const chainGroups = useMemo(
+    () => byChain(positions, Object.fromEntries(Object.entries(info).map(([id, t]) => [id, t.chain]))),
+    [positions, info],
+  );
+  const topChain = chainConcentration(chainGroups);
 
   // Compare each tokenised holding with the other tokens for the same asset.
   const notes: Record<number, RowNote> = {};
@@ -217,9 +267,17 @@ export default function Dashboard() {
     const q = quotes[p.id];
     const w = compareWrappers(asset, p.id, q?.price ?? null, q?.volume24h ?? null);
     const busierExit = w.busier ? exitCheck(p.value, w.busier.volume24h) : null;
+    const metal = METALS[asset.rwaId];
+    const vsSpot = metal ? spotGap(q?.price ?? null, spot[metal.cmcId] ?? null) : null;
+    if (metal && vsSpot && Math.abs(vsSpot.gap) >= 0.01) {
+      wrapperWarnings.push(
+        `Your ${p.symbol} trades ${pct(Math.abs(vsSpot.gap))} ${vsSpot.gap > 0 ? "above" : "below"} the spot price of ${metal.name}. Buying or selling it means paying or receiving that difference.`,
+      );
+    }
     notes[p.id] = {
       tokenCount: w.tokenCount,
-      priceGap: w.priceGap,
+      priceGap: vsSpot ? null : w.priceGap,
+      spot: metal && vsSpot ? { metal: metal.name, gap: vsSpot.gap, unit: vsSpot.unit } : null,
       busier: w.busier && busierExit ? { symbol: w.busier.symbol, issuer: normalizeIssuer(w.busier.issuerName ?? ""), volume: w.busier.volume24h ?? 0, ratio: w.busierRatio ?? 0, exit: busierExit } : null,
     };
     if (w.busier && w.busierRatio && busierExit && isHardToSell(exitCheck(p.value, typicalVolume(p.id)))) {
@@ -248,12 +306,18 @@ export default function Dashboard() {
         const today = quotes[p.id].volume24h as number;
         return `${p.symbol} is trading far below normal today: ${usd(today, { compact: true })} in the last 24 hours against ${usd(typical, { compact: true })} on a typical day. Liquidity can disappear when you need it.`;
       }),
+    ...positions
+      .filter((p) => info[p.id]?.notice)
+      .map((p) => `CoinMarketCap notice for ${p.symbol}: ${info[p.id].notice}`),
     ...hiddenConcentration(underlying, UNDERLYING_WARN).map(
       (g) => `${pct(g.share, 0)} of your money is one bet on ${g.label}, spread across ${g.symbols.join(" and ")}.`,
     ),
     ...issuers
       .filter((g) => g.share >= ISSUER_WARN)
       .map((g) => `${g.label} stands behind ${pct(g.share, 0)} of your money (${g.symbols.join(", ")}). If ${g.label} fails, all of it is affected at once.`),
+    ...(topChain
+      ? [`${pct(topChain.share, 0)} of your money depends on ${topChain.label} (${topChain.symbols.join(", ")}). A problem on that chain would affect all of them at once.`]
+      : []),
   ];
 
   const underlyingOf = (h: Holding) => lookThrough(h.symbol, h.name, hintFor(h.id)).underlying;
@@ -328,6 +392,8 @@ export default function Dashboard() {
                   setQuotes({});
                   setRwa(EMPTY_RWA);
                   setHistory({});
+                  setInfo({});
+                  setSpot({});
                   setHistoryReady(false);
                   setNotice(null);
                 }}
@@ -359,11 +425,13 @@ export default function Dashboard() {
             colors={colors}
             notes={notes}
             history={history}
+            logos={Object.fromEntries(Object.entries(info).map(([id, t]) => [id, t.logo]))}
             underlyingOf={underlyingOf}
             onRemove={(id) => setHoldings((p) => p.filter((h) => h.id !== id))}
           />
         )}
         {positions.length > 0 && <Issuers issuers={issuers} />}
+        {positions.length > 0 && <Chains chains={chainGroups} />}
 
         <Census />
         <AddHolding call={call} onAdd={addHolding} onAddMany={addMany} />

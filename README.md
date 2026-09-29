@@ -7,7 +7,7 @@
 Lookthrough is a portfolio tracker for people who hold crypto and tokenised real-world assets side by side: Bitcoin next to tokenised gold, tokenised stocks and treasury tokens. A wallet shows a list of tokens. Lookthrough answers three questions about them, using live CoinMarketCap data including its real-world asset (RWA) endpoints:
 
 1. **What do my tokens really own?** Tokens are regrouped by the asset behind them. PAXG and XAUt are both gold. BTC and WBTC are both Bitcoin. NVDAX is Nvidia.
-2. **Who am I trusting?** Tokenised assets depend on an issuer. Lookthrough shows when one issuer stands behind a large share of your money.
+2. **Who am I trusting?** Tokenised assets depend on an issuer, and every token lives on a blockchain. Lookthrough shows when one issuer, or one chain, stands behind a large share of your money.
 3. **Could I actually sell it?** Every position is compared with the token's trading volume on a typical day. When a busier token exists for the same asset, Lookthrough says how fast the same position would sell in that token instead.
 
 > **Track:** Real World Assets · **Built for:** Build with CMC: API Hackathon · #BuildwithCMC
@@ -49,6 +49,8 @@ Full method and a per-issuer table: [docs/CENSUS.md](docs/CENSUS.md). This is wh
 | `GET /v3/cryptocurrency/quotes/latest` | Price, 24h volume (with its CEX/DEX split) and 24h change for every holding, one call per portfolio | 2 minutes |
 | `GET /v3/cryptocurrency/quotes/historical` | 30 daily volumes per holding; the exit check uses the median day | 6 hours |
 | `GET /v1/cryptocurrency/map` | Tickers to CoinMarketCap IDs, choosing between tokens that share a ticker | 24 hours |
+| `GET /v2/cryptocurrency/info` | The blockchain each holding is issued on (`platform`), for "Where your tokens live", each token's logo, and any CoinMarketCap notice about it | 24 hours |
+| `GET /v2/tools/price-conversion` | Spot price of gold (ID 3575) and silver (ID 3574) per troy ounce, to compare gold and silver tokens with the metal itself | 5 minutes |
 | `GET /v5/real-world-assets/quotes/latest` | For each tokenised holding: its real-world asset, and every other token CMC tracks for that asset, with price, volume and issuer | 5 minutes |
 | `GET /v5/real-world-assets/issuers/list` | All RWA issuers, to build the token → asset → issuer index | build step |
 | `GET /v5/real-world-assets/issuers` | Every token each issuer has created, with its `crypto_id` and `rwa_id` | build step |
@@ -131,6 +133,8 @@ flowchart LR
 
 **Selling pace.** Days to sell = position value ÷ (10% of a typical day's volume). Selling more than about 10% of daily volume usually moves the price; this is a rule of thumb, stated in the app.
 
+**Gold and silver against spot** ([`lib/metals.ts`](lib/metals.ts)). For gold and silver tokens, Lookthrough compares the token's price with CoinMarketCap's own price for a troy ounce of the metal, and works out whether the token is priced per ounce, per gram or per kilogram before comparing. This is the one case where the API offers a reference price for the underlying.
+
 **Wrapper comparison** ([`lib/rwa.ts`](lib/rwa.ts)). Each tokenised holding is compared with the other tokens for the same asset on volume and price. Derivative "tokens" are left out because they are not claims on the asset.
 
 ## Reliability during judging
@@ -147,12 +151,12 @@ Holdings are stored only in your browser. A shared link carries the portfolio af
 
 **Made possible.** One RWA quotes call returns every token for an asset, with issuer, price and volume, which is the whole basis of the wrapper comparison. The issuer endpoints expose the `crypto_id` ↔ `rwa_id` link that turns a list of tokens into a look-through. The v3 quotes add a CEX/DEX split of volume, and historical quotes let the exit check use a typical day instead of today. A whole portfolio refresh costs about one credit.
 
-**Got in the way.** Items 1 to 10 happened while building Lookthrough and can be reproduced; 11 and 12 are gaps we ran into when designing it:
+**Got in the way.** Items 1 to 10, 13 and 14 happened while building Lookthrough and can be reproduced; 11 and 12 are gaps we ran into when designing it:
 
 1. **`error_code` type differs between endpoints and from the docs.** The RWA reference documents `error_code` as an integer. `/v5/real-world-assets/*` and `/v3/cryptocurrency/quotes/latest` return the string `"0"` with `error_message: ""`, while `/v1/cryptocurrency/map` and `/v1/key/info` return the integer `0` with `error_message: null`. Our first RWA integration treated every successful v5 call as an error. Suggestion: one type everywhere, matching the docs.
 2. **No direct way from a token to its real-world asset.** Given a `crypto_id` (for example 36992, NVDAX), there is no parameter or field that returns its `rwa_id`. We crawled every issuer's token list, about 30 calls and 30 credits, to build that index. Suggestion: accept `crypto_id` on `/v5/real-world-assets/quotes/latest`, or add `rwa_id` to `/v3/cryptocurrency/quotes/latest` and `/v2/cryptocurrency/info`.
 3. **Many issuer tokens are not linked to an asset.** The issuers list reports 2,400 tokens across its issuers; in our crawl, 1,444 came back with an `rwa_id`. The rest have `rwa_id: null`, so they cannot be looked through.
-4. **No reference price for the underlying.** The track brief suggests comparing a tokenised asset against its underlying, but RWA quotes give `average_tokenized_price` (the average of the tokens) and `tradfi_markets` (venue and ticker, no price). We could compare tokens with each other, not with the real Nvidia share. Suggestion: a reference price and its timestamp on RWA quotes.
+4. **No reference price for the underlying stock.** The track brief suggests comparing a tokenised asset against its underlying, but RWA quotes give `average_tokenized_price` (the average of the tokens) and `tradfi_markets` (venue and ticker, no price). For gold and silver, `/v2/tools/price-conversion` with the metal's ID gives spot, and Lookthrough uses it; for stocks there is no equivalent, so we can compare tokens with each other but not with the real Nvidia share. Suggestion: a reference price and its timestamp on RWA quotes.
 5. **"No price" and "no trading" look the same.** 60.2% of tokens return `price: null` or `volume_24h: null`. It is unclear whether a token has no market or CoinMarketCap has no data for it. A status field would help.
 6. **Per-venue liquidity is out of reach for most builders.** `/v5/real-world-assets/market-pairs/list` and cryptocurrency market pairs are on Growth and above, not on the Startup plan given to hackathon participants, so liquidity can only be judged from aggregate volume.
 7. **Ticker collisions.** "NVDA" is both Robinhood's Nvidia token (crypto_id 40685) and a derivative (38153). `/v1/cryptocurrency/map?symbol=` returns several matches with no issuer or type, so a user typing a ticker needs a second step to pick the right one.
@@ -161,6 +165,8 @@ Holdings are stored only in your browser. A shared link carries the portfolio af
 10. **Hackathon access.** Our Startup upgrade arrived after a support ticket, a few days before the deadline. The plan comparison page answered our access questions faster than the Q&A.
 11. **No field for whether a tokenisation is authorised by the issuing company.** For a holder, and even more for an institution, it matters whether Nvidia itself agreed to an Nvidia token. RWA info and quotes do not say.
 12. **Short history for RWA tokens.** Tokenised assets only have roughly 18 months of data, and token prices drift slightly from the underlying. With a reference price (item 4) and longer series, tools like Lookthrough could show that drift directly.
+13. **No unit on RWA token prices.** Tokens for the same asset can be priced per gram or per troy ounce, about 31× apart, with nothing in `quotes/latest` saying which. Lookthrough hides any price gap over 20% rather than present a unit mismatch as a premium.
+14. **Symbols are even less reliable for metals.** `/v2/tools/price-conversion?symbol=XAU` returns four matches: a meme coin, a gold derivative, an inactive coin, and "Gold Troy Ounce" (ID 3575). Lookthrough calls it by ID only.
 
 ## Limitations
 
@@ -184,7 +190,7 @@ npm run dev                  # http://localhost:3000
 Other scripts:
 
 ```bash
-npm test          # 21 unit tests: look-through, exit check, RWA parsing, share links, pasting
+npm test          # 29 unit tests: look-through, exit check, chains, metals, RWA parsing, share links, pasting
 npm run lint
 npm run data      # rebuild the RWA index, run the census, save snapshots (about 80 credits)
 ```
@@ -194,8 +200,8 @@ The API key is read only on the server, from `CMC_API_KEY`. It is never sent to 
 ## Project structure
 
 ```
-app/api/        Route handlers: quotes, history, rwa, resolve, symbol, key-info
-components/     Dashboard, look-through bars, holdings table, issuers, census, API log
+app/api/        Route handlers: quotes, history, rwa, chains, metals, resolve, symbol, key-info
+components/     Dashboard, look-through bars, holdings table, issuers, chains, census, API log
 lib/            CMC client, cache and fallback, parsing, exit check, exposure, RWA helpers, share links
 scripts/        rwa-index, census, snapshot
 data/           Generated: RWA index, census results, snapshots
