@@ -16,8 +16,8 @@ Lookthrough is a portfolio tracker for people who hold crypto and tokenised real
 |---|---|
 | **Live app** | https://lookthrough-tau.vercel.app |
 | **Open the example portfolio** | [lookthrough-tau.vercel.app/#p=…](https://lookthrough-tau.vercel.app/#p=1:0.12:64640.4,3717:0.05:76189,1027:1.8:2973.26,825:4000:0.999535,4705:2:3497.85,5176:1.5:3744.74,36992:60:213.477,37004:40:436.106,29256:3000:1.11367,37214:11.62:547.561) |
-| **Demo video** | TODO_VIDEO_LINK |
-| **DoraHacks BUIDL** | TODO_BUIDL_LINK |
+| **Demo video** | [https://www.youtube.com/watch?v=m2-8txrtV54](https://www.youtube.com/watch?v=m2-8txrtV54) |
+| **DoraHacks BUIDL** | [https://dorahacks.io/buidl/49251](https://dorahacks.io/buidl/49251) |
 
 ![Lookthrough showing the verdict, warnings and look-through bars for the sample portfolio](docs/screenshot.jpeg)
 
