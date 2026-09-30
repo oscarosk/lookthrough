@@ -127,14 +127,36 @@ function plainText(value: unknown): string | null {
   return text.length > 280 ? `${text.slice(0, 277)}…` : text;
 }
 
-/** Chain (`platform.name`) and logo per id from /v2/cryptocurrency/info. */
+/**
+ * The chain a token is issued on. `platform.name` is the name of the chain's coin
+ * ("OKB" for X Layer), so prefer the chain name from the matching `contract_address`
+ * entry ("X Layer"), and fall back to `platform.name`.
+ */
+function chainName(
+  platform: { name?: unknown; token_address?: unknown } | null | undefined,
+  contracts: { contract_address?: unknown; platform?: { name?: unknown } }[] | undefined,
+): string | null {
+  if (!platform) return null;
+  const address = typeof platform.token_address === "string" ? platform.token_address.toLowerCase() : null;
+  const match = address && Array.isArray(contracts) ? contracts.find((c) => typeof c.contract_address === "string" && c.contract_address.toLowerCase() === address) : undefined;
+  const name = match?.platform?.name ?? platform.name;
+  return typeof name === "string" ? name : null;
+}
+
+/** Chain, logo and notice per id from /v2/cryptocurrency/info. */
 export function parseInfo(data: unknown): Record<number, TokenInfo> {
   const out: Record<number, TokenInfo> = {};
   for (const raw of entries(data)) {
-    const e = raw as { id?: unknown; platform?: { name?: unknown } | null; logo?: unknown; notice?: unknown } | null;
+    const e = raw as {
+      id?: unknown;
+      platform?: { name?: unknown; token_address?: unknown } | null;
+      contract_address?: { contract_address?: unknown; platform?: { name?: unknown } }[];
+      logo?: unknown;
+      notice?: unknown;
+    } | null;
     if (!e || typeof e.id !== "number") continue;
     out[e.id] = {
-      chain: e.platform && typeof e.platform.name === "string" ? e.platform.name : null,
+      chain: chainName(e.platform, e.contract_address),
       logo: typeof e.logo === "string" && e.logo.startsWith("https://") ? e.logo : null,
       notice: plainText(e.notice),
     };

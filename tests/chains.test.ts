@@ -17,6 +17,24 @@ describe("chains", () => {
     });
   });
 
+  it("names the chain, not the chain's coin", () => {
+    // Trimmed from a real /v2/cryptocurrency/info response: platform.name is "OKB" for X Layer.
+    const data = {
+      "7": {
+        id: 7,
+        platform: { id: "3897", name: "OKB", token_address: "0xABC" },
+        contract_address: [
+          { contract_address: "Xsc9", platform: { name: "Solana" } },
+          { contract_address: "0xabc", platform: { name: "X Layer" } },
+        ],
+      },
+      "8": { id: 8, platform: { name: "Solana", token_address: "Xsc9" } },
+    };
+    const info = parseInfo(data);
+    expect(info[7].chain).toBe("X Layer");
+    expect(info[8].chain).toBe("Solana");
+  });
+
   it("groups positions by chain and flags one chain carrying a large share", () => {
     const positions = [pos(1, "BTC", 2000), pos(4705, "PAXG", 5000), pos(825, "USDT", 3000)];
     const groups = byChain(positions, { 1: null, 4705: "Ethereum", 825: "Ethereum" });

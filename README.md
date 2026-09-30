@@ -151,7 +151,7 @@ Holdings are stored only in your browser. A shared link carries the portfolio af
 
 **Made possible.** One RWA quotes call returns every token for an asset, with issuer, price and volume, which is the whole basis of the wrapper comparison. The issuer endpoints expose the `crypto_id` ↔ `rwa_id` link that turns a list of tokens into a look-through. The v3 quotes add a CEX/DEX split of volume, and historical quotes let the exit check use a typical day instead of today. A whole portfolio refresh costs about one credit.
 
-**Got in the way.** Items 1 to 10, 13 and 14 happened while building Lookthrough and can be reproduced; 11 and 12 are gaps we ran into when designing it:
+**Got in the way.** Items 1 to 10 and 13 to 15 happened while building Lookthrough and can be reproduced; 11 and 12 are gaps we ran into when designing it:
 
 1. **`error_code` type differs between endpoints and from the docs.** The RWA reference documents `error_code` as an integer. `/v5/real-world-assets/*` and `/v3/cryptocurrency/quotes/latest` return the string `"0"` with `error_message: ""`, while `/v1/cryptocurrency/map` and `/v1/key/info` return the integer `0` with `error_message: null`. Our first RWA integration treated every successful v5 call as an error. Suggestion: one type everywhere, matching the docs.
 2. **No direct way from a token to its real-world asset.** Given a `crypto_id` (for example 36992, NVDAX), there is no parameter or field that returns its `rwa_id`. We crawled every issuer's token list, about 30 calls and 30 credits, to build that index. Suggestion: accept `crypto_id` on `/v5/real-world-assets/quotes/latest`, or add `rwa_id` to `/v3/cryptocurrency/quotes/latest` and `/v2/cryptocurrency/info`.
@@ -167,6 +167,14 @@ Holdings are stored only in your browser. A shared link carries the portfolio af
 12. **Short history for RWA tokens.** Tokenised assets only have roughly 18 months of data, and token prices drift slightly from the underlying. With a reference price (item 4) and longer series, tools like Lookthrough could show that drift directly.
 13. **No unit on RWA token prices.** Tokens for the same asset can be priced per gram or per troy ounce, about 31× apart, with nothing in `quotes/latest` saying which. Lookthrough hides any price gap over 20% rather than present a unit mismatch as a premium.
 14. **Symbols are even less reliable for metals.** `/v2/tools/price-conversion?symbol=XAU` returns four matches: a meme coin, a gold derivative, an inactive coin, and "Gold Troy Ounce" (ID 3575). Lookthrough calls it by ID only.
+15. **`platform.name` names the coin, not the chain.** In `/v2/cryptocurrency/info`, a token on X Layer has `platform.name: "OKB"`; the chain name ("X Layer") is only in the matching `contract_address[].platform.name`. Lookthrough reads it from there. The same response also shows no `rwa_id`, which is why the token → asset index has to be built from the issuer endpoints.
+
+## What's next
+
+- **Pool depth for the exit check.** For tokens that trade mostly on DEXs, CoinMarketCap's DEX token liquidity and pools endpoints could replace volume with real pool depth.
+- **Holder concentration.** The DEX holder endpoints could flag tokens where a few wallets hold most of the supply.
+- **Contract risk.** The DEX security endpoint could add contract-level warnings to "What stands out."
+- **A reference price for stocks.** If the RWA quotes add one, the gold-and-silver comparison extends to every tokenised stock.
 
 ## Limitations
 
@@ -190,7 +198,7 @@ npm run dev                  # http://localhost:3000
 Other scripts:
 
 ```bash
-npm test          # 29 unit tests: look-through, exit check, chains, metals, RWA parsing, share links, pasting
+npm test          # 30 unit tests: look-through, exit check, chains, metals, RWA parsing, share links, pasting
 npm run lint
 npm run data      # rebuild the RWA index, run the census, save snapshots (about 80 credits)
 ```
